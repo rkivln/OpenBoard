@@ -1,0 +1,23 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "SF Pro", "Google Sans", "Google Sans Text", system-ui, sans-serif;
+    --font-mono: "SF Mono", "SFProMono-Regular", ui-monospace, Menlo, Monaco, Consolas, monospace;
+  }
+
+  * {
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "SF Pro", "Google Sans", "Google Sans Text", system-ui, sans-serif;
+  }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "SF Pro", "Google Sans", "Google Sans Text", system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    letter-spacing: -0.01em;
+  }
+
+  input, textarea, button, select {
+    font-family: inherit;
+  }
+}

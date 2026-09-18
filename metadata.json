@@ -1,0 +1,7 @@
+{
+  "name": "OpenBoard",
+  "description": "A professional infinite collaborative whiteboard application with drawing tools, shapes, sticky notes, reaction wheel, timer, ambient music, and live voting.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
+
