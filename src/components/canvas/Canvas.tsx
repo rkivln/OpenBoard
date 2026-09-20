@@ -10,17 +10,49 @@ import {
   StickyColor,
   GridConfig,
   UserPresence,
+  ShapeElement,
+  ConnectorElement,
 } from '../../types.ts';
 import { PatternDefs } from '../../utils/patterns.tsx';
 import { CanvasElementView } from './CanvasElementView.tsx';
+import { FlowchartGuide } from './FlowchartGuide.tsx';
 import confetti from 'canvas-confetti';
 import { Copy, Trash2, X } from 'lucide-react';
+import {
+  computeMoveSnapping,
+  computeResizeSnapping,
+  computeConnectorPointSnapping,
+  type SnappingGuide,
+  type Box,
+  type ResizeHandleDirection,
+} from '../../utils/snapping.ts';
+import { SmartGuidesOverlay } from './SmartGuidesOverlay.tsx';
+
+function getShapeAnchor(
+  el: CanvasElement,
+  side: 'top' | 'right' | 'bottom' | 'left'
+): [number, number] {
+  const w = 'width' in el ? (el.width || 120) : 120;
+  const h = 'height' in el ? (el.height || 100) : 100;
+  switch (side) {
+    case 'top':
+      return [el.x + w / 2, el.y];
+    case 'right':
+      return [el.x + w, el.y + h / 2];
+    case 'bottom':
+      return [el.x + w / 2, el.y + h];
+    case 'left':
+      return [el.x, el.y + h / 2];
+  }
+}
 
 interface DraggedElementSnapshot {
   id: string;
   type: string;
   origX: number;
   origY: number;
+  origWidth?: number;
+  origHeight?: number;
   origPoints?: [number, number][];
   origEndX?: number;
   origEndY?: number;
@@ -114,6 +146,280 @@ export const Canvas: React.FC<CanvasProps> = ({
   const [shapeStart, setShapeStart] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
   const [shapeCurrent, setShapeCurrent] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
 
+  // Seamless Flowchart State: Drag-to-connect and Auto-focus
+  const [connectingState, setConnectingState] = useState<{
+    sourceId: string;
+    fromSide: 'top' | 'right' | 'bottom' | 'left';
+    startAnchor: { x: number; y: number };
+    currentPos: { x: number; y: number };
+    snappedTargetId?: string;
+    snappedTargetSide?: 'top' | 'right' | 'bottom' | 'left';
+  } | null>(null);
+  const [autoEditingId, setAutoEditingId] = useState<string | null>(null);
+
+  // Smart Snapping Alignment Guides
+  const [snappingGuides, setSnappingGuides] = useState<SnappingGuide[]>([]);
+
+  // Element Resizing State
+  const [resizingState, setResizingState] = useState<{
+    elementId: string;
+    handle: ResizeHandleDirection;
+    origBox: Box;
+    startMouse: { x: number; y: number };
+  } | null>(null);
+
+  const handleStartResize = (
+    e: React.MouseEvent,
+    id: string,
+    handle: ResizeHandleDirection
+  ) => {
+    e.stopPropagation();
+    const el = elements.find((item) => item.id === id);
+    if (!el) return;
+    const b = getElementBounds(el);
+    const canvasPos = getCanvasCoords(e.clientX, e.clientY);
+    setResizingState({
+      elementId: id,
+      handle,
+      origBox: { x: b.x, y: b.y, width: b.width, height: b.height },
+      startMouse: canvasPos,
+    });
+    if (!selectedElementIds.includes(id)) {
+      onSelectElement(id);
+    }
+  };
+
+  const triggerAutoEditing = (id: string) => {
+    setAutoEditingId(id);
+    setTimeout(() => {
+      setAutoEditingId((current) => (current === id ? null : current));
+    }, 200);
+  };
+
+  // Quick-Add connected sibling or child shape (Screenshots 2 & 3)
+  const handleQuickConnect = (
+    sourceId: string,
+    direction: 'top' | 'right' | 'bottom' | 'left'
+  ) => {
+    const sourceEl = elements.find((e) => e.id === sourceId);
+    if (!sourceEl) return;
+
+    const w = 'width' in sourceEl ? (sourceEl.width || 120) : 120;
+    const h = 'height' in sourceEl ? (sourceEl.height || 60) : 60;
+    const gap = 80;
+
+    let newX = sourceEl.x;
+    let newY = sourceEl.y;
+    let toSide: 'top' | 'right' | 'bottom' | 'left' = 'left';
+
+    if (direction === 'right') {
+      newX = sourceEl.x + w + gap;
+      newY = sourceEl.y;
+      toSide = 'left';
+    } else if (direction === 'bottom') {
+      newX = sourceEl.x;
+      newY = sourceEl.y + h + gap;
+      toSide = 'top';
+    } else if (direction === 'left') {
+      newX = sourceEl.x - w - gap;
+      newY = sourceEl.y;
+      toSide = 'right';
+    } else if (direction === 'top') {
+      newX = sourceEl.x;
+      newY = sourceEl.y - h - gap;
+      toSide = 'bottom';
+    }
+
+    const newShapeId = `shape-${Date.now()}`;
+    const newConnectorId = `conn-${Date.now() + 1}`;
+
+    const newShape: CanvasElement = {
+      id: newShapeId,
+      type: 'shape',
+      shapeKind: (sourceEl as ShapeElement).shapeKind || 'rect',
+      x: Math.round(newX),
+      y: Math.round(newY),
+      width: w,
+      height: h,
+      strokeColor: (sourceEl as ShapeElement).strokeColor || '#52525b',
+      fillColor: (sourceEl as ShapeElement).fillColor || '#ffffff',
+      strokeWidth: (sourceEl as ShapeElement).strokeWidth || 2,
+      strokeDash: (sourceEl as ShapeElement).strokeDash || 'solid',
+      text: '',
+      fontSize: (sourceEl as ShapeElement).fontSize || 14,
+      bold: (sourceEl as ShapeElement).bold,
+      align: (sourceEl as ShapeElement).align || 'center',
+      zIndex: elements.length + 2,
+    };
+
+    const sourceAnchor = getShapeAnchor(sourceEl, direction);
+    const targetAnchor = getShapeAnchor(newShape, toSide);
+
+    const newConnector: CanvasElement = {
+      id: newConnectorId,
+      type: 'connector',
+      connectorKind: selectedConnector || 'arrow',
+      fromId: sourceEl.id,
+      toId: newShape.id,
+      fromSide: direction,
+      toSide: toSide,
+      x: Math.round(sourceAnchor[0]),
+      y: Math.round(sourceAnchor[1]),
+      endX: Math.round(targetAnchor[0]),
+      endY: Math.round(targetAnchor[1]),
+      points: [sourceAnchor, targetAnchor],
+      strokeColor: '#64748b',
+      strokeWidth: 2,
+      zIndex: elements.length + 1,
+    };
+
+    onAddElement(newConnector);
+    onAddElement(newShape);
+    onSelectElement(newShape.id);
+    triggerAutoEditing(newShape.id);
+  };
+
+  // Drag from anchor dot to connect to another shape or drop new shape
+  const handleStartConnectionDrag = (
+    sourceId: string,
+    direction: 'top' | 'right' | 'bottom' | 'left',
+    clientX: number,
+    clientY: number
+  ) => {
+    const sourceEl = elements.find((e) => e.id === sourceId);
+    if (!sourceEl) return;
+    const startAnchor = getShapeAnchor(sourceEl, direction);
+    const canvasPos = getCanvasCoords(clientX, clientY);
+    setConnectingState({
+      sourceId,
+      fromSide: direction,
+      startAnchor: { x: startAnchor[0], y: startAnchor[1] },
+      currentPos: canvasPos,
+    });
+  };
+
+  // Starter Mind Map / Flowchart Guide click (Screenshot 1)
+  const handleStartGuide = () => {
+    const center = { x: 380, y: 260 };
+    const rootId = `shape-root-${Date.now()}`;
+    const b1Id = `shape-b1-${Date.now()}`;
+    const b2Id = `shape-b2-${Date.now()}`;
+    const b3Id = `shape-b3-${Date.now()}`;
+
+    const root: CanvasElement = {
+      id: rootId,
+      type: 'shape',
+      shapeKind: 'rounded-rect',
+      x: center.x - 90,
+      y: center.y - 30,
+      width: 180,
+      height: 60,
+      strokeColor: '#8b5cf6',
+      fillColor: '#f5f3ff',
+      strokeWidth: 2,
+      text: 'Any question or topic',
+      fontSize: 15,
+      bold: true,
+      zIndex: 1,
+    };
+
+    const b1: CanvasElement = {
+      id: b1Id,
+      type: 'shape',
+      shapeKind: 'rounded-rect',
+      x: center.x + 220,
+      y: center.y - 85,
+      width: 140,
+      height: 48,
+      strokeColor: '#52525b',
+      fillColor: '#ffffff',
+      strokeWidth: 2,
+      text: 'A concept',
+      fontSize: 14,
+      zIndex: 2,
+    };
+
+    const b2: CanvasElement = {
+      id: b2Id,
+      type: 'shape',
+      shapeKind: 'rounded-rect',
+      x: center.x + 220,
+      y: center.y - 24,
+      width: 140,
+      height: 48,
+      strokeColor: '#52525b',
+      fillColor: '#ffffff',
+      strokeWidth: 2,
+      text: 'An idea',
+      fontSize: 14,
+      zIndex: 3,
+    };
+
+    const b3: CanvasElement = {
+      id: b3Id,
+      type: 'shape',
+      shapeKind: 'rounded-rect',
+      x: center.x + 220,
+      y: center.y + 37,
+      width: 140,
+      height: 48,
+      strokeColor: '#52525b',
+      fillColor: '#ffffff',
+      strokeWidth: 2,
+      text: 'A thought',
+      fontSize: 14,
+      zIndex: 4,
+    };
+
+    const c1: CanvasElement = {
+      id: `conn-1-${Date.now()}`,
+      type: 'connector',
+      connectorKind: 'curved',
+      fromId: rootId,
+      toId: b1Id,
+      fromSide: 'right',
+      toSide: 'left',
+      x: center.x,
+      y: center.y,
+      strokeColor: '#8b5cf6',
+      strokeWidth: 2,
+      zIndex: 5,
+    };
+
+    const c2: CanvasElement = {
+      id: `conn-2-${Date.now()}`,
+      type: 'connector',
+      connectorKind: 'curved',
+      fromId: rootId,
+      toId: b2Id,
+      fromSide: 'right',
+      toSide: 'left',
+      x: center.x,
+      y: center.y,
+      strokeColor: '#8b5cf6',
+      strokeWidth: 2,
+      zIndex: 6,
+    };
+
+    const c3: CanvasElement = {
+      id: `conn-3-${Date.now()}`,
+      type: 'connector',
+      connectorKind: 'curved',
+      fromId: rootId,
+      toId: b3Id,
+      fromSide: 'right',
+      toSide: 'left',
+      x: center.x,
+      y: center.y,
+      strokeColor: '#8b5cf6',
+      strokeWidth: 2,
+      zIndex: 7,
+    };
+
+    [root, b1, b2, b3, c1, c2, c3].forEach((el) => onAddElement(el));
+    onSelectElement(rootId);
+  };
+
   // Convert Screen Coordinates -> Canvas World Coordinates
   const getCanvasCoords = (clientX: number, clientY: number): { x: number; y: number } => {
     if (!containerRef.current) return { x: 0, y: 0 };
@@ -170,6 +476,26 @@ export const Canvas: React.FC<CanvasProps> = ({
     return { x: el.x, y: el.y, width: w, height: h };
   };
 
+  // Stabilize props & state for global keyboard shortcuts to prevent listener churn
+  const elementsRef = useRef(elements);
+  elementsRef.current = elements;
+  const selectedElementIdsRef = useRef(selectedElementIds);
+  selectedElementIdsRef.current = selectedElementIds;
+  const kbHandlersRef = useRef({
+    onDeleteElements,
+    onDeleteElement,
+    onDuplicateElements,
+    onSelectElements,
+    onSelectElement,
+  });
+  kbHandlersRef.current = {
+    onDeleteElements,
+    onDeleteElement,
+    onDuplicateElements,
+    onSelectElements,
+    onSelectElement,
+  };
+
   // Keyboard shortcuts (Space for pan, Backspace/Delete to remove, Ctrl+D to duplicate, Ctrl+A to select all, Esc to deselect)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -183,35 +509,53 @@ export const Canvas: React.FC<CanvasProps> = ({
       }
 
       if (!isInput) {
+        const curSelectedIds = selectedElementIdsRef.current;
+        const curElements = elementsRef.current;
+        const handlers = kbHandlersRef.current;
+
         // Delete or Backspace
-        if ((e.key === 'Delete' || e.key === 'Backspace') && selectedElementIds.length > 0) {
+        if ((e.key === 'Delete' || e.key === 'Backspace') && curSelectedIds.length > 0) {
           e.preventDefault();
-          if (onDeleteElements) {
-            onDeleteElements(selectedElementIds);
+          if (handlers.onDeleteElements) {
+            handlers.onDeleteElements(curSelectedIds);
           } else {
-            selectedElementIds.forEach((id) => onDeleteElement(id));
+            curSelectedIds.forEach((id) => handlers.onDeleteElement(id));
           }
-          onSelectElement(null);
+          handlers.onSelectElement(null);
         }
 
         // Duplicate (Ctrl/Cmd + D)
-        if ((e.ctrlKey || e.metaKey) && (e.key === 'd' || e.key === 'D') && selectedElementIds.length > 0) {
+        if ((e.ctrlKey || e.metaKey) && (e.key === 'd' || e.key === 'D') && curSelectedIds.length > 0) {
           e.preventDefault();
-          onDuplicateElements?.(selectedElementIds);
+          handlers.onDuplicateElements?.(curSelectedIds);
         }
 
         // Select All (Ctrl/Cmd + A)
         if ((e.ctrlKey || e.metaKey) && (e.key === 'a' || e.key === 'A')) {
           e.preventDefault();
-          const allIds = elements.map((el) => el.id);
-          if (onSelectElements) {
-            onSelectElements(allIds);
+          const allIds = curElements.map((el) => el.id);
+          if (handlers.onSelectElements) {
+            handlers.onSelectElements(allIds);
+          }
+        }
+
+        // Quick Flowchart Branching (Tab for right child, Enter for bottom sibling)
+        if (curSelectedIds.length === 1) {
+          const selEl = curElements.find((el) => el.id === curSelectedIds[0]);
+          if (selEl && selEl.type === 'shape') {
+            if (e.key === 'Tab') {
+              e.preventDefault();
+              handleQuickConnect(selEl.id, e.shiftKey ? 'left' : 'right');
+            } else if (e.key === 'Enter') {
+              e.preventDefault();
+              handleQuickConnect(selEl.id, 'bottom');
+            }
           }
         }
 
         // Escape (Deselect)
         if (e.key === 'Escape') {
-          onSelectElement(null);
+          handlers.onSelectElement(null);
         }
       }
     };
@@ -229,7 +573,7 @@ export const Canvas: React.FC<CanvasProps> = ({
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
     };
-  }, [isSpacePressed, selectedElementIds, elements, onDeleteElements, onDeleteElement, onDuplicateElements, onSelectElements, onSelectElement]);
+  }, [isSpacePressed]);
 
   // Handle Mouse Wheel Zooming
   const handleWheel = (e: React.WheelEvent) => {
@@ -417,6 +761,111 @@ export const Canvas: React.FC<CanvasProps> = ({
     const canvasPos = getCanvasCoords(e.clientX, e.clientY);
     onCursorMove(canvasPos.x, canvasPos.y);
 
+    // Live Flowchart Connection Drag with magnetic anchor snapping
+    if (connectingState) {
+      const shapeBoxes = elements
+        .filter(
+          (e) =>
+            (e.type === 'shape' || e.type === 'sticky' || e.type === 'table') &&
+            e.id !== connectingState.sourceId
+        )
+        .map((e) => ({
+          id: e.id,
+          x: e.x,
+          y: e.y,
+          width: 'width' in e ? (e.width || 120) : 120,
+          height: 'height' in e ? (e.height || 60) : 60,
+        }));
+
+      const snapResult = computeConnectorPointSnapping(
+        canvasPos,
+        connectingState.startAnchor,
+        shapeBoxes,
+        Math.max(14, 18 / zoom)
+      );
+
+      setConnectingState((prev) =>
+        prev
+          ? {
+              ...prev,
+              currentPos: snapResult.pos,
+              snappedTargetId: snapResult.targetShapeId,
+              snappedTargetSide: snapResult.targetSide,
+            }
+          : null
+      );
+      setSnappingGuides(snapResult.guides);
+      return;
+    }
+
+    // Element Resizing motion with Smart Snapping Guides
+    if (resizingState) {
+      const deltaX = canvasPos.x - resizingState.startMouse.x;
+      const deltaY = canvasPos.y - resizingState.startMouse.y;
+      const orig = resizingState.origBox;
+      const handle = resizingState.handle;
+
+      const proposedBox: Box = { ...orig };
+
+      if (handle === 'se') {
+        proposedBox.width = Math.max(40, orig.width + deltaX);
+        proposedBox.height = Math.max(30, orig.height + deltaY);
+      } else if (handle === 'e') {
+        proposedBox.width = Math.max(40, orig.width + deltaX);
+      } else if (handle === 's') {
+        proposedBox.height = Math.max(30, orig.height + deltaY);
+      } else if (handle === 'w') {
+        const newW = Math.max(40, orig.width - deltaX);
+        proposedBox.x = orig.x + (orig.width - newW);
+        proposedBox.width = newW;
+      } else if (handle === 'n') {
+        const newH = Math.max(30, orig.height - deltaY);
+        proposedBox.y = orig.y + (orig.height - newH);
+        proposedBox.height = newH;
+      } else if (handle === 'nw') {
+        const newW = Math.max(40, orig.width - deltaX);
+        const newH = Math.max(30, orig.height - deltaY);
+        proposedBox.x = orig.x + (orig.width - newW);
+        proposedBox.y = orig.y + (orig.height - newH);
+        proposedBox.width = newW;
+        proposedBox.height = newH;
+      } else if (handle === 'ne') {
+        const newW = Math.max(40, orig.width + deltaX);
+        const newH = Math.max(30, orig.height - deltaY);
+        proposedBox.y = orig.y + (orig.height - newH);
+        proposedBox.width = newW;
+        proposedBox.height = newH;
+      } else if (handle === 'sw') {
+        const newW = Math.max(40, orig.width - deltaX);
+        const newH = Math.max(30, orig.height + deltaY);
+        proposedBox.x = orig.x + (orig.width - newW);
+        proposedBox.width = newW;
+        proposedBox.height = newH;
+      }
+
+      const refBoxes = elements
+        .filter((el) => el.id !== resizingState.elementId)
+        .map((el) => getElementBounds(el));
+
+      const snapResult = computeResizeSnapping(
+        orig,
+        handle,
+        proposedBox,
+        refBoxes,
+        Math.max(6, 8 / zoom)
+      );
+
+      onUpdateElement(resizingState.elementId, {
+        x: Math.round(snapResult.box.x),
+        y: Math.round(snapResult.box.y),
+        width: Math.round(snapResult.box.width),
+        height: Math.round(snapResult.box.height),
+      });
+
+      setSnappingGuides(snapResult.guides);
+      return;
+    }
+
     // Pan motion
     if (isPanning) {
       onPanChange({
@@ -459,10 +908,41 @@ export const Canvas: React.FC<CanvasProps> = ({
       return;
     }
 
-    // Multi-element Dragging motion
+    // Multi-element Dragging motion with Smart Snapping Guides
     if (isDraggingElements && draggedSnapshots.size > 0) {
-      const dx = canvasPos.x - dragStart.x;
-      const dy = canvasPos.y - dragStart.y;
+      let dx = canvasPos.x - dragStart.x;
+      let dy = canvasPos.y - dragStart.y;
+
+      // Smart Snapping against other canvas elements
+      const refBoxes: Box[] = elements
+        .filter((el) => !draggedSnapshots.has(el.id))
+        .map((el) => getElementBounds(el));
+
+      if (refBoxes.length > 0) {
+        const firstSnap = draggedSnapshots.values().next().value;
+        if (firstSnap && firstSnap.origWidth && firstSnap.origHeight) {
+          const proposedTargetBox: Box = {
+            x: firstSnap.origX + dx,
+            y: firstSnap.origY + dy,
+            width: firstSnap.origWidth,
+            height: firstSnap.origHeight,
+          };
+
+          const snapResult = computeMoveSnapping(
+            proposedTargetBox,
+            refBoxes,
+            Math.max(6, 8 / zoom)
+          );
+
+          dx += snapResult.deltaX;
+          dy += snapResult.deltaY;
+          setSnappingGuides(snapResult.guides);
+        } else {
+          setSnappingGuides([]);
+        }
+      } else {
+        setSnappingGuides([]);
+      }
 
       draggedSnapshots.forEach((snap) => {
         if (snap.origPoints) {
@@ -510,6 +990,122 @@ export const Canvas: React.FC<CanvasProps> = ({
       setIsPanning(false);
     }
 
+    if (resizingState) {
+      setResizingState(null);
+      setSnappingGuides([]);
+    }
+
+    // Finish Flowchart Connection Drag (Screenshots 2 & 3)
+    if (connectingState) {
+      const { sourceId, fromSide, currentPos, startAnchor, snappedTargetId, snappedTargetSide } = connectingState;
+      setConnectingState(null);
+      setSnappingGuides([]);
+
+      // Check if dropped over another shape or magnetically snapped to an anchor
+      const targetEl =
+        (snappedTargetId ? elements.find((e) => e.id === snappedTargetId) : null) ||
+        elements.find(
+          (e) =>
+            e.id !== sourceId &&
+            e.type === 'shape' &&
+            currentPos.x >= e.x &&
+            currentPos.x <= e.x + (e.width || 120) &&
+            currentPos.y >= e.y &&
+            currentPos.y <= e.y + (e.height || 60)
+        );
+
+      if (targetEl) {
+        // Connect to existing target shape!
+        const toSide: 'top' | 'right' | 'bottom' | 'left' =
+          snappedTargetSide ||
+          (fromSide === 'right'
+            ? 'left'
+            : fromSide === 'bottom'
+            ? 'top'
+            : fromSide === 'left'
+            ? 'right'
+            : 'bottom');
+        const targetAnchor = getShapeAnchor(targetEl, toSide);
+
+        const newConnector: CanvasElement = {
+          id: `conn-${Date.now()}`,
+          type: 'connector',
+          connectorKind: selectedConnector || 'arrow',
+          fromId: sourceId,
+          toId: targetEl.id,
+          fromSide,
+          toSide,
+          x: Math.round(startAnchor.x),
+          y: Math.round(startAnchor.y),
+          endX: Math.round(targetAnchor[0]),
+          endY: Math.round(targetAnchor[1]),
+          points: [[startAnchor.x, startAnchor.y], targetAnchor],
+          strokeColor: '#64748b',
+          strokeWidth: 2,
+          zIndex: elements.length + 1,
+        };
+        onAddElement(newConnector);
+        onSelectElement(targetEl.id);
+      } else {
+        // Dropped on empty canvas -> spawn new connected shape!
+        const sourceEl = elements.find((e) => e.id === sourceId);
+        const w = sourceEl && 'width' in sourceEl ? (sourceEl.width || 120) : 120;
+        const h = sourceEl && 'height' in sourceEl ? (sourceEl.height || 60) : 60;
+
+        const newShapeId = `shape-${Date.now()}`;
+        const newShape: CanvasElement = {
+          id: newShapeId,
+          type: 'shape',
+          shapeKind: (sourceEl as ShapeElement)?.shapeKind || 'rect',
+          x: Math.round(currentPos.x - w / 2),
+          y: Math.round(currentPos.y - h / 2),
+          width: w,
+          height: h,
+          strokeColor: (sourceEl as ShapeElement)?.strokeColor || '#52525b',
+          fillColor: '#ffffff',
+          strokeWidth: 2,
+          strokeDash: 'solid',
+          text: '',
+          fontSize: 14,
+          zIndex: elements.length + 2,
+        };
+
+        const toSide =
+          fromSide === 'right'
+            ? 'left'
+            : fromSide === 'bottom'
+            ? 'top'
+            : fromSide === 'left'
+            ? 'right'
+            : 'bottom';
+        const targetAnchor = getShapeAnchor(newShape, toSide);
+
+        const newConnector: CanvasElement = {
+          id: `conn-${Date.now() + 1}`,
+          type: 'connector',
+          connectorKind: selectedConnector || 'arrow',
+          fromId: sourceId,
+          toId: newShape.id,
+          fromSide,
+          toSide,
+          x: Math.round(startAnchor.x),
+          y: Math.round(startAnchor.y),
+          endX: Math.round(targetAnchor[0]),
+          endY: Math.round(targetAnchor[1]),
+          points: [[startAnchor.x, startAnchor.y], targetAnchor],
+          strokeColor: '#64748b',
+          strokeWidth: 2,
+          zIndex: elements.length + 1,
+        };
+
+        onAddElement(newConnector);
+        onAddElement(newShape);
+        onSelectElement(newShape.id);
+        triggerAutoEditing(newShape.id);
+      }
+      return;
+    }
+
     // Finish Box Selection
     if (isSelectingBox) {
       setIsSelectingBox(false);
@@ -525,6 +1121,7 @@ export const Canvas: React.FC<CanvasProps> = ({
     if (isDraggingElements) {
       setIsDraggingElements(false);
       setDraggedSnapshots(new Map());
+      setSnappingGuides([]);
     }
 
     // Finish freehand drawing
@@ -563,21 +1160,24 @@ export const Canvas: React.FC<CanvasProps> = ({
     // Finish shape / connector creation
     if (isCreatingShape) {
       setIsCreatingShape(false);
-      const minX = Math.min(shapeStart.x, shapeCurrent.x);
-      const minY = Math.min(shapeStart.y, shapeCurrent.y);
-      const width = Math.max(Math.abs(shapeCurrent.x - shapeStart.x), 50);
-      const height = Math.max(Math.abs(shapeCurrent.y - shapeStart.y), 50);
+      const isClick =
+        Math.abs(shapeCurrent.x - shapeStart.x) < 8 &&
+        Math.abs(shapeCurrent.y - shapeStart.y) < 8;
+      const shapeW = isClick ? 130 : Math.max(Math.abs(shapeCurrent.x - shapeStart.x), 50);
+      const shapeH = isClick ? 60 : Math.max(Math.abs(shapeCurrent.y - shapeStart.y), 50);
+      const posX = isClick ? shapeStart.x - shapeW / 2 : Math.min(shapeStart.x, shapeCurrent.x);
+      const posY = isClick ? shapeStart.y - shapeH / 2 : Math.min(shapeStart.y, shapeCurrent.y);
 
       if (currentTool === 'shape') {
         const newShape: CanvasElement = {
           id: `shape-${Date.now()}`,
           type: 'shape',
           shapeKind: selectedShape,
-          x: minX,
-          y: minY,
-          width,
-          height,
-          strokeColor: strokeColor || '#334155',
+          x: Math.round(posX),
+          y: Math.round(posY),
+          width: shapeW,
+          height: shapeH,
+          strokeColor: strokeColor || '#52525b',
           fillColor: '#ffffff',
           strokeWidth: 2,
           text: '',
@@ -585,22 +1185,44 @@ export const Canvas: React.FC<CanvasProps> = ({
         };
         onAddElement(newShape);
         onSelectElement(newShape.id);
+        triggerAutoEditing(newShape.id);
         onToolChange?.('select');
       } else if (currentTool === 'connector') {
+        const fromEl = elements.find(
+          (e) =>
+            e.type === 'shape' &&
+            shapeStart.x >= e.x &&
+            shapeStart.x <= e.x + (e.width || 120) &&
+            shapeStart.y >= e.y &&
+            shapeStart.y <= e.y + (e.height || 60)
+        );
+        const toEl = elements.find(
+          (e) =>
+            e.type === 'shape' &&
+            shapeCurrent.x >= e.x &&
+            shapeCurrent.x <= e.x + (e.width || 120) &&
+            shapeCurrent.y >= e.y &&
+            shapeCurrent.y <= e.y + (e.height || 60)
+        );
+
         const newConn: CanvasElement = {
           id: `conn-${Date.now()}`,
           type: 'connector',
           connectorKind: selectedConnector,
-          x: minX,
-          y: minY,
-          width,
-          height,
+          fromId: fromEl?.id,
+          toId: toEl?.id,
+          fromSide: fromEl ? (shapeCurrent.x > shapeStart.x ? 'right' : 'left') : undefined,
+          toSide: toEl ? (shapeCurrent.x > shapeStart.x ? 'left' : 'right') : undefined,
+          x: shapeStart.x,
+          y: shapeStart.y,
+          endX: shapeCurrent.x,
+          endY: shapeCurrent.y,
           points: [
             [shapeStart.x, shapeStart.y],
             [shapeCurrent.x, shapeCurrent.y],
           ],
-          strokeColor: strokeColor || '#8B5CF6',
-          strokeWidth: 2.5,
+          strokeColor: strokeColor || '#64748b',
+          strokeWidth: 2,
           zIndex: elements.length + 1,
         };
         onAddElement(newConn);
@@ -643,11 +1265,14 @@ export const Canvas: React.FC<CanvasProps> = ({
     nextSelected.forEach((selId) => {
       const el = elements.find((item) => item.id === selId);
       if (el) {
+        const b = getElementBounds(el);
         snapshots.set(selId, {
           id: el.id,
           type: el.type,
           origX: el.x,
           origY: el.y,
+          origWidth: b.width,
+          origHeight: b.height,
           origPoints: (el as any).points ? JSON.parse(JSON.stringify((el as any).points)) : undefined,
           origEndX: (el as any).endX,
           origEndY: (el as any).endY,
@@ -770,19 +1395,67 @@ export const Canvas: React.FC<CanvasProps> = ({
           transform={`translate(${pan.x}, ${pan.y}) scale(${zoom})`}
           className="pointer-events-auto"
         >
+          {/* Empty Canvas Starter Guide (Screenshot 1) */}
+          {elements.length === 0 && (
+            <foreignObject
+              x={0}
+              y={0}
+              width={1600}
+              height={1000}
+              className="overflow-visible pointer-events-auto"
+            >
+              <FlowchartGuide onStartGuide={handleStartGuide} />
+            </foreignObject>
+          )}
+
           {/* Render All Board Elements */}
           {elements.map((el) => (
             <CanvasElementView
               key={el.id}
               element={el}
+              allElements={elements}
               isSelected={selectedElementIds.includes(el.id)}
               onSelect={handleElementSelect}
               onUpdate={(updated) => onUpdateElement(el.id, updated)}
               onDelete={onDeleteElement}
+              onDuplicate={
+                onDuplicateElements ? (id) => onDuplicateElements([id]) : undefined
+              }
+              onQuickConnect={handleQuickConnect}
+              onStartConnectionDrag={handleStartConnectionDrag}
+              onStartResize={handleStartResize}
+              autoEditingId={autoEditingId}
               zoom={zoom}
               currentTool={currentTool}
             />
           ))}
+
+          {/* Smart Snapping Alignment Guides Overlay */}
+          <SmartGuidesOverlay guides={snappingGuides} zoom={zoom} />
+
+          {/* Live Drag-to-Connect Arrow Preview (Screenshots 2 & 3) */}
+          {connectingState && (
+            <g className="pointer-events-none">
+              <line
+                x1={connectingState.startAnchor.x}
+                y1={connectingState.startAnchor.y}
+                x2={connectingState.currentPos.x}
+                y2={connectingState.currentPos.y}
+                stroke="#0ea5e9"
+                strokeWidth={2.5}
+                strokeDasharray="5 4"
+                strokeLinecap="round"
+              />
+              <circle
+                cx={connectingState.currentPos.x}
+                cy={connectingState.currentPos.y}
+                r={6}
+                fill="#0ea5e9"
+                stroke="#ffffff"
+                strokeWidth={2}
+              />
+            </g>
+          )}
 
           {/* Group Multi-Selection Bounding Box Outline */}
           {selectionUnionBox && (

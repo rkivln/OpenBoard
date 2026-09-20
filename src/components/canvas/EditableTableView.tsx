@@ -157,6 +157,98 @@ export const EditableTableView: React.FC<EditableTableViewProps> = ({
   const minTableWidth = Math.max(element.width ?? 380, colCount * 120 + 64);
   const minTableHeight = Math.max(element.height ?? 180, (rowCount + 1) * 38 + 68);
 
+  // Keyboard navigation between cells
+  const handleKeyDown = (
+    e: React.KeyboardEvent<HTMLInputElement>,
+    rIdx: number,
+    cIdx: number,
+    isHeader: boolean = false
+  ) => {
+    if (e.key === 'Tab') {
+      e.preventDefault();
+      if (!e.shiftKey) {
+        // Next cell
+        if (isHeader) {
+          if (cIdx < colCount - 1) {
+            const nextEl = document.getElementById(`tbl-${element.id}-head-${cIdx + 1}`);
+            nextEl?.focus();
+          } else {
+            const nextEl = document.getElementById(`tbl-${element.id}-cell-0-0`);
+            nextEl?.focus();
+          }
+        } else {
+          if (cIdx < colCount - 1) {
+            const nextEl = document.getElementById(`tbl-${element.id}-cell-${rIdx}-${cIdx + 1}`);
+            nextEl?.focus();
+          } else if (rIdx < rowCount - 1) {
+            const nextEl = document.getElementById(`tbl-${element.id}-cell-${rIdx + 1}-0`);
+            nextEl?.focus();
+          } else {
+            // Auto-add new row at the end if tabbing from last cell!
+            const newRow = new Array(headers.length).fill('');
+            const nextRows = [...rows, newRow];
+            onUpdate({
+              height: (element.height ?? 180) + 38,
+              tableData: {
+                headers,
+                rows: nextRows,
+              },
+            });
+            setTimeout(() => {
+              const newCellEl = document.getElementById(`tbl-${element.id}-cell-${rIdx + 1}-0`);
+              newCellEl?.focus();
+            }, 50);
+          }
+        }
+      } else {
+        // Prev cell (Shift+Tab)
+        if (isHeader) {
+          if (cIdx > 0) {
+            const prevEl = document.getElementById(`tbl-${element.id}-head-${cIdx - 1}`);
+            prevEl?.focus();
+          }
+        } else {
+          if (cIdx > 0) {
+            const prevEl = document.getElementById(`tbl-${element.id}-cell-${rIdx}-${cIdx - 1}`);
+            prevEl?.focus();
+          } else if (rIdx > 0) {
+            const prevEl = document.getElementById(`tbl-${element.id}-cell-${rIdx - 1}-${colCount - 1}`);
+            prevEl?.focus();
+          } else {
+            const prevEl = document.getElementById(`tbl-${element.id}-head-${colCount - 1}`);
+            prevEl?.focus();
+          }
+        }
+      }
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      if (isHeader) {
+        const nextEl = document.getElementById(`tbl-${element.id}-cell-0-${cIdx}`);
+        nextEl?.focus();
+      } else {
+        if (rIdx < rowCount - 1) {
+          const nextEl = document.getElementById(`tbl-${element.id}-cell-${rIdx + 1}-${cIdx}`);
+          nextEl?.focus();
+        } else {
+          // Add new row on Enter from last row
+          const newRow = new Array(headers.length).fill('');
+          const nextRows = [...rows, newRow];
+          onUpdate({
+            height: (element.height ?? 180) + 38,
+            tableData: {
+              headers,
+              rows: nextRows,
+            },
+          });
+          setTimeout(() => {
+            const nextEl = document.getElementById(`tbl-${element.id}-cell-${rIdx + 1}-${cIdx}`);
+            nextEl?.focus();
+          }, 50);
+        }
+      }
+    }
+  };
+
   return (
     <foreignObject
       x={element.x}
@@ -164,17 +256,26 @@ export const EditableTableView: React.FC<EditableTableViewProps> = ({
       width={minTableWidth}
       height={minTableHeight}
       onMouseDown={(e) => {
-        e.stopPropagation();
-        onSelect(e, element.id);
+        const target = e.target as HTMLElement;
+        if (target.tagName !== 'INPUT' && target.tagName !== 'BUTTON') {
+          e.stopPropagation();
+          onSelect(e, element.id);
+        }
       }}
-      className="overflow-visible select-none"
+      className="overflow-visible pointer-events-auto"
     >
       <div
         id={`elem-${element.id}`}
-        className="w-full h-full bg-white rounded-xl shadow-lg border border-slate-200/90 overflow-hidden flex flex-col transition-shadow"
+        className="w-full h-full bg-white rounded-xl shadow-lg border border-slate-200/90 overflow-hidden flex flex-col transition-shadow select-text"
       >
         {/* Table Top Drag Handle & Toolbar */}
-        <div className="flex items-center justify-between px-3 py-1.5 bg-slate-50 border-b border-slate-200 text-xs text-slate-600 cursor-move">
+        <div
+          onMouseDown={(e) => {
+            e.stopPropagation();
+            onSelect(e, element.id);
+          }}
+          className="flex items-center justify-between px-3 py-1.5 bg-slate-50 border-b border-slate-200 text-xs text-slate-600 cursor-move select-none"
+        >
           <div className="flex items-center gap-1.5 font-medium">
             <GripHorizontal className="w-3.5 h-3.5 text-slate-400" />
             <TableIcon className="w-3.5 h-3.5 text-purple-600" />
@@ -235,12 +336,19 @@ export const EditableTableView: React.FC<EditableTableViewProps> = ({
                   >
                     <div className="flex items-center gap-1">
                       <input
+                        id={`tbl-${element.id}-head-${cIdx}`}
                         type="text"
                         value={head}
                         placeholder={`Column ${cIdx + 1}`}
                         onChange={(e) => handleHeaderChange(cIdx, e.target.value)}
+                        onKeyDown={(e) => handleKeyDown(e, 0, cIdx, true)}
+                        onFocus={() => {
+                          if (!isSelected) {
+                            onSelect({ stopPropagation: () => {} } as any, element.id);
+                          }
+                        }}
                         onMouseDown={(e) => e.stopPropagation()}
-                        className="w-full px-1.5 py-1 text-xs font-semibold text-slate-800 bg-transparent rounded hover:bg-white focus:bg-white focus:ring-1 focus:ring-purple-500 focus:outline-none transition-colors border-none truncate"
+                        className="w-full px-2 py-1 text-xs font-semibold text-slate-800 bg-transparent rounded hover:bg-white focus:bg-white focus:ring-1.5 focus:ring-purple-500 focus:outline-none transition-colors border border-transparent focus:border-purple-300 truncate cursor-text select-text"
                       />
                       {headers.length > 1 && (
                         <button
@@ -303,12 +411,19 @@ export const EditableTableView: React.FC<EditableTableViewProps> = ({
                       className="p-1 border-r border-slate-200 min-w-[110px]"
                     >
                       <input
+                        id={`tbl-${element.id}-cell-${rIdx}-${cIdx}`}
                         type="text"
                         value={cellValue}
-                        placeholder="Empty cell..."
+                        placeholder="Empty..."
                         onChange={(e) => handleCellChange(rIdx, cIdx, e.target.value)}
+                        onKeyDown={(e) => handleKeyDown(e, rIdx, cIdx, false)}
+                        onFocus={() => {
+                          if (!isSelected) {
+                            onSelect({ stopPropagation: () => {} } as any, element.id);
+                          }
+                        }}
                         onMouseDown={(e) => e.stopPropagation()}
-                        className="w-full px-2 py-1.5 text-xs text-slate-800 bg-transparent rounded hover:bg-white focus:bg-white focus:ring-1.5 focus:ring-purple-500 focus:outline-none transition-colors border-none"
+                        className="w-full px-2 py-1.5 text-xs text-slate-800 bg-transparent rounded hover:bg-white focus:bg-white focus:ring-1.5 focus:ring-purple-500 focus:outline-none transition-colors border border-transparent focus:border-purple-300 cursor-text select-text"
                       />
                     </td>
                   ))}

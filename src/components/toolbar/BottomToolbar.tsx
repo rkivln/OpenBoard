@@ -143,7 +143,7 @@ export const BottomToolbar: React.FC<BottomToolbarProps> = ({
       <button
         id="tool-sticky-stack"
         onClick={() => {
-          onSelectTool('sticky');
+          onQuickAddSticky();
           onTogglePopover('none');
         }}
         className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all cursor-pointer ${
@@ -151,7 +151,7 @@ export const BottomToolbar: React.FC<BottomToolbarProps> = ({
             ? 'bg-purple-100/80 ring-1.5 ring-purple-400'
             : 'hover:bg-slate-100'
         }`}
-        title="Sticky Note - Click canvas to drop sticky note"
+        title="Sticky Note - Add note to board"
       >
         {/* Layered sheets with curled corner preview */}
         <div className="relative w-6 h-6">
@@ -208,44 +208,19 @@ export const BottomToolbar: React.FC<BottomToolbarProps> = ({
         <Type className="w-4 h-4" />
       </button>
 
-      {/* 7. Sticky Note Tool */}
-      <button
-        id="tool-sticky-quick"
-        onClick={() => {
-          if (isStickyActive) {
-            onQuickAddSticky();
-          } else {
-            onSelectTool('sticky');
-            onTogglePopover('none');
-          }
-        }}
-        className={`w-9 h-9 rounded-xl flex items-center justify-center transition-all cursor-pointer ${
-          isStickyActive
-            ? 'bg-[#8B5CF6] text-white shadow-xs'
-            : 'text-slate-700 hover:bg-slate-100'
-        }`}
-        title="Sticky Note (S) - Click canvas to place a note"
-      >
-        <StickyNote className="w-4 h-4" />
-      </button>
-
-      {/* 8. Table Tool */}
+      {/* 7. Table Tool */}
       <button
         id="tool-table"
         onClick={() => {
-          if (isTableActive) {
-            onQuickAddTable();
-          } else {
-            onSelectTool('table');
-            onTogglePopover('none');
-          }
+          onQuickAddTable();
+          onTogglePopover('none');
         }}
         className={`w-9 h-9 rounded-xl flex items-center justify-center transition-all cursor-pointer ${
           isTableActive
             ? 'bg-[#8B5CF6] text-white shadow-xs'
             : 'text-slate-700 hover:bg-slate-100'
         }`}
-        title="Table - Click canvas to place an editable table"
+        title="Table - Add editable table"
       >
         <Table className="w-4 h-4" />
       </button>

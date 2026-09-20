@@ -15,7 +15,7 @@ import {
 import { soundEngine } from '../utils/audio.ts';
 import confetti from 'canvas-confetti';
 
-const STORAGE_KEY = 'openboard_state_v1';
+const STORAGE_KEY = 'openboard_canvas_v2';
 
 export function useBoardState() {
   const [elements, setElements] = useState<CanvasElement[]>([]);
@@ -85,33 +85,36 @@ export function useBoardState() {
 
   const wsRef = useRef<WebSocket | null>(null);
   const isRemoteSyncRef = useRef<boolean>(false);
+  const elementsRef = useRef<CanvasElement[]>(elements);
+  elementsRef.current = elements;
+  const historyIndexRef = useRef<number>(historyIndex);
+  historyIndexRef.current = historyIndex;
+  const boardTitleRef = useRef<string>(boardTitle);
+  boardTitleRef.current = boardTitle;
 
-  // Helper to commit new state into history
-  const pushToHistory = useCallback((newElements: CanvasElement[]) => {
-    setHistory((prev) => {
-      const trimmed = prev.slice(0, historyIndex + 1);
-      return [...trimmed, newElements];
-    });
-    setHistoryIndex((prev) => prev + 1);
-  }, [historyIndex]);
-
-  // Save to localStorage & push history
+  // Save to localStorage & push history without nested setState in updaters
   const commitElements = useCallback(
     (updater: CanvasElement[] | ((prev: CanvasElement[]) => CanvasElement[]), skipHistory: boolean = false) => {
-      setElements((prev) => {
-        const next = typeof updater === 'function' ? updater(prev) : updater;
-        if (!skipHistory) {
-          pushToHistory(next);
-        }
-        try {
-          localStorage.setItem(STORAGE_KEY, JSON.stringify({ elements: next, title: boardTitle }));
-        } catch (e) {
-          // ignore quota error
-        }
-        return next;
-      });
+      const current = elementsRef.current;
+      const next = typeof updater === 'function' ? updater(current) : updater;
+
+      setElements(next);
+
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify({ elements: next, title: boardTitleRef.current }));
+      } catch (e) {
+        // ignore quota error
+      }
+
+      if (!skipHistory) {
+        setHistory((prev) => {
+          const trimmed = prev.slice(0, historyIndexRef.current + 1);
+          return [...trimmed, next];
+        });
+        setHistoryIndex((prev) => prev + 1);
+      }
     },
-    [boardTitle, pushToHistory]
+    []
   );
 
   // Connect WebSocket for real-time collaboration
@@ -238,22 +241,28 @@ export function useBoardState() {
 
   // Load from local storage or server initial fetch
   useEffect(() => {
+    try {
+      localStorage.removeItem('openboard_state_v1');
+    } catch {
+      // ignore
+    }
+
     fetch('/api/board/main')
       .then((res) => res.json())
       .then((data) => {
-        if (data.elements && data.elements.length > 0) {
+        if (data && Array.isArray(data.elements)) {
           setElements(data.elements);
           setHistory([data.elements]);
           setHistoryIndex(0);
           if (data.title) setBoardTitle(data.title);
-          if (data.activeVote) setActiveVote(data.activeVote);
+          if (data.activeVote !== undefined) setActiveVote(data.activeVote);
         } else {
           // fallback to localStorage
           const saved = localStorage.getItem(STORAGE_KEY);
           if (saved) {
             try {
               const parsed = JSON.parse(saved);
-              if (parsed.elements) {
+              if (parsed.elements && Array.isArray(parsed.elements)) {
                 setElements(parsed.elements);
                 setHistory([parsed.elements]);
                 setHistoryIndex(0);
@@ -270,7 +279,7 @@ export function useBoardState() {
         if (saved) {
           try {
             const parsed = JSON.parse(saved);
-            if (parsed.elements) {
+            if (parsed.elements && Array.isArray(parsed.elements)) {
               setElements(parsed.elements);
               setHistory([parsed.elements]);
               setHistoryIndex(0);
@@ -569,6 +578,50 @@ export function useBoardState() {
     [sendWs]
   );
 
+  const selectElement = useCallback((id: string | null, isMulti?: boolean) => {
+    if (!id) {
+      setSelectedIds([]);
+    } else if (isMulti) {
+      setSelectedIds((prev) => (prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id]));
+    } else {
+      setSelectedIds([id]);
+    }
+  }, []);
+
+  const selectElements = useCallback((ids: string[]) => {
+    setSelectedIds(ids);
+  }, []);
+
+  const deleteElement = useCallback(
+    (id: string) => {
+      deleteElements([id]);
+    },
+    [deleteElements]
+  );
+
+  const duplicateBoard = useCallback(() => {
+    duplicateElements(elementsRef.current.map((e) => e.id));
+  }, [duplicateElements]);
+
+  const newBoard = useCallback(() => {
+    clearCanvas();
+    renameBoard('Untitled');
+  }, [clearCanvas, renameBoard]);
+
+  const exportBoard = useCallback((format: 'png' | 'svg' | 'json') => {
+    if (format === 'json') {
+      const dataStr = 'data:text/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(elementsRef.current, null, 2));
+      const downloadAnchor = document.createElement('a');
+      downloadAnchor.setAttribute('href', dataStr);
+      downloadAnchor.setAttribute('download', `${boardTitleRef.current.toLowerCase().replace(/\s+/g, '-')}-export.json`);
+      document.body.appendChild(downloadAnchor);
+      downloadAnchor.click();
+      downloadAnchor.remove();
+    } else {
+      window.print();
+    }
+  }, []);
+
   return {
     elements,
     selectedIds,
@@ -626,38 +679,15 @@ export function useBoardState() {
     // Aliases & Conveniences
     selectedElementIds: selectedIds,
     isConnected: true,
-    selectElement: (id: string | null, isMulti?: boolean) => {
-      if (!id) {
-        setSelectedIds([]);
-      } else if (isMulti) {
-        setSelectedIds((prev) => (prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id]));
-      } else {
-        setSelectedIds([id]);
-      }
-    },
-    selectElements: (ids: string[]) => setSelectedIds(ids),
+    selectElement,
+    selectElements,
     batchUpdateElements,
-    deleteElement: (id: string) => deleteElements([id]),
+    deleteElement,
     updateBoardTitle: renameBoard,
-    duplicateBoard: () => duplicateElements(elements.map((e) => e.id)),
-    newBoard: () => {
-      clearCanvas();
-      renameBoard('Untitled');
-    },
+    duplicateBoard,
+    newBoard,
     clearBoard: clearCanvas,
-    exportBoard: (format: 'png' | 'svg' | 'json') => {
-      if (format === 'json') {
-        const dataStr = 'data:text/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(elements, null, 2));
-        const downloadAnchor = document.createElement('a');
-        downloadAnchor.setAttribute('href', dataStr);
-        downloadAnchor.setAttribute('download', `${boardTitle.toLowerCase().replace(/\s+/g, '-')}-export.json`);
-        document.body.appendChild(downloadAnchor);
-        downloadAnchor.click();
-        downloadAnchor.remove();
-      } else {
-        window.print();
-      }
-    },
+    exportBoard,
     updateCursor: broadcastCursor,
     setAudioCategory: changeAudioCategory,
     setAudioVolume: changeAudioVolume,

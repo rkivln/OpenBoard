@@ -105,11 +105,18 @@ export interface ShapeElement extends BaseElement {
   text?: string;
   textColor?: string;
   fontSize?: number;
+  bold?: boolean;
+  strikethrough?: boolean;
+  align?: 'left' | 'center' | 'right';
 }
 
 export interface ConnectorElement extends BaseElement {
   type: 'connector';
   connectorKind: ConnectorKind;
+  fromId?: string;
+  toId?: string;
+  fromSide?: 'top' | 'right' | 'bottom' | 'left';
+  toSide?: 'top' | 'right' | 'bottom' | 'left';
   endX?: number;
   endY?: number;
   width?: number;
