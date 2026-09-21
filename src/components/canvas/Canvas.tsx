@@ -15,7 +15,6 @@ import {
 } from '../../types.ts';
 import { PatternDefs } from '../../utils/patterns.tsx';
 import { CanvasElementView } from './CanvasElementView.tsx';
-import { FlowchartGuide } from './FlowchartGuide.tsx';
 import confetti from 'canvas-confetti';
 import { Copy, Trash2, X } from 'lucide-react';
 import {
@@ -296,128 +295,6 @@ export const Canvas: React.FC<CanvasProps> = ({
       startAnchor: { x: startAnchor[0], y: startAnchor[1] },
       currentPos: canvasPos,
     });
-  };
-
-  // Starter Mind Map / Flowchart Guide click (Screenshot 1)
-  const handleStartGuide = () => {
-    const center = { x: 380, y: 260 };
-    const rootId = `shape-root-${Date.now()}`;
-    const b1Id = `shape-b1-${Date.now()}`;
-    const b2Id = `shape-b2-${Date.now()}`;
-    const b3Id = `shape-b3-${Date.now()}`;
-
-    const root: CanvasElement = {
-      id: rootId,
-      type: 'shape',
-      shapeKind: 'rounded-rect',
-      x: center.x - 90,
-      y: center.y - 30,
-      width: 180,
-      height: 60,
-      strokeColor: '#8b5cf6',
-      fillColor: '#f5f3ff',
-      strokeWidth: 2,
-      text: 'Any question or topic',
-      fontSize: 15,
-      bold: true,
-      zIndex: 1,
-    };
-
-    const b1: CanvasElement = {
-      id: b1Id,
-      type: 'shape',
-      shapeKind: 'rounded-rect',
-      x: center.x + 220,
-      y: center.y - 85,
-      width: 140,
-      height: 48,
-      strokeColor: '#52525b',
-      fillColor: '#ffffff',
-      strokeWidth: 2,
-      text: 'A concept',
-      fontSize: 14,
-      zIndex: 2,
-    };
-
-    const b2: CanvasElement = {
-      id: b2Id,
-      type: 'shape',
-      shapeKind: 'rounded-rect',
-      x: center.x + 220,
-      y: center.y - 24,
-      width: 140,
-      height: 48,
-      strokeColor: '#52525b',
-      fillColor: '#ffffff',
-      strokeWidth: 2,
-      text: 'An idea',
-      fontSize: 14,
-      zIndex: 3,
-    };
-
-    const b3: CanvasElement = {
-      id: b3Id,
-      type: 'shape',
-      shapeKind: 'rounded-rect',
-      x: center.x + 220,
-      y: center.y + 37,
-      width: 140,
-      height: 48,
-      strokeColor: '#52525b',
-      fillColor: '#ffffff',
-      strokeWidth: 2,
-      text: 'A thought',
-      fontSize: 14,
-      zIndex: 4,
-    };
-
-    const c1: CanvasElement = {
-      id: `conn-1-${Date.now()}`,
-      type: 'connector',
-      connectorKind: 'curved',
-      fromId: rootId,
-      toId: b1Id,
-      fromSide: 'right',
-      toSide: 'left',
-      x: center.x,
-      y: center.y,
-      strokeColor: '#8b5cf6',
-      strokeWidth: 2,
-      zIndex: 5,
-    };
-
-    const c2: CanvasElement = {
-      id: `conn-2-${Date.now()}`,
-      type: 'connector',
-      connectorKind: 'curved',
-      fromId: rootId,
-      toId: b2Id,
-      fromSide: 'right',
-      toSide: 'left',
-      x: center.x,
-      y: center.y,
-      strokeColor: '#8b5cf6',
-      strokeWidth: 2,
-      zIndex: 6,
-    };
-
-    const c3: CanvasElement = {
-      id: `conn-3-${Date.now()}`,
-      type: 'connector',
-      connectorKind: 'curved',
-      fromId: rootId,
-      toId: b3Id,
-      fromSide: 'right',
-      toSide: 'left',
-      x: center.x,
-      y: center.y,
-      strokeColor: '#8b5cf6',
-      strokeWidth: 2,
-      zIndex: 7,
-    };
-
-    [root, b1, b2, b3, c1, c2, c3].forEach((el) => onAddElement(el));
-    onSelectElement(rootId);
   };
 
   // Convert Screen Coordinates -> Canvas World Coordinates
@@ -1395,19 +1272,6 @@ export const Canvas: React.FC<CanvasProps> = ({
           transform={`translate(${pan.x}, ${pan.y}) scale(${zoom})`}
           className="pointer-events-auto"
         >
-          {/* Empty Canvas Starter Guide (Screenshot 1) */}
-          {elements.length === 0 && (
-            <foreignObject
-              x={0}
-              y={0}
-              width={1600}
-              height={1000}
-              className="overflow-visible pointer-events-auto"
-            >
-              <FlowchartGuide onStartGuide={handleStartGuide} />
-            </foreignObject>
-          )}
-
           {/* Render All Board Elements */}
           {elements.map((el) => (
             <CanvasElementView
