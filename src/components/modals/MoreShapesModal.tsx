@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, Search, Shapes, Database, Cloud, MessageSquare, Star, Network, Cpu, Layout } from 'lucide-react';
+import { X, Search, Shapes, Database, Cloud, MessageSquare, Star, Network } from 'lucide-react';
 import { ShapeKind } from '../../types.ts';
 
 interface MoreShapesModalProps {
@@ -30,32 +30,32 @@ export const MoreShapesModal: React.FC<MoreShapesModalProps> = ({
       id: 'rect',
       label: 'Rectangle',
       category: 'basic',
-      icon: <div className="w-6 h-6 border-2 border-slate-700 rounded-xs" />,
+      icon: <div className="w-6 h-6 border-2 border-zinc-700 rounded-xs" />,
     },
     {
       id: 'rounded-rect',
       label: 'Rounded Rectangle',
       category: 'basic',
-      icon: <div className="w-6 h-6 border-2 border-slate-700 rounded-lg" />,
+      icon: <div className="w-6 h-6 border-2 border-zinc-700 rounded-lg" />,
     },
     {
       id: 'circle',
-      label: 'Circle / Oval',
+      label: 'Circle',
       category: 'basic',
-      icon: <div className="w-6 h-6 border-2 border-slate-700 rounded-full" />,
+      icon: <div className="w-6 h-6 border-2 border-zinc-700 rounded-full" />,
     },
     {
       id: 'diamond',
       label: 'Decision Diamond',
       category: 'flowchart',
-      icon: <div className="w-5 h-5 border-2 border-slate-700 rotate-45" />,
+      icon: <div className="w-5 h-5 border-2 border-zinc-700 rotate-45" />,
     },
     {
       id: 'triangle',
       label: 'Triangle',
       category: 'basic',
       icon: (
-        <svg viewBox="0 0 24 24" className="w-6 h-6 fill-none stroke-slate-700 stroke-2">
+        <svg viewBox="0 0 24 24" className="w-6 h-6 fill-none stroke-zinc-700 stroke-2">
           <polygon points="12,3 22,21 2,21" />
         </svg>
       ),
@@ -65,46 +65,46 @@ export const MoreShapesModal: React.FC<MoreShapesModalProps> = ({
       label: 'Inverted Triangle',
       category: 'basic',
       icon: (
-        <svg viewBox="0 0 24 24" className="w-6 h-6 fill-none stroke-slate-700 stroke-2">
+        <svg viewBox="0 0 24 24" className="w-6 h-6 fill-none stroke-zinc-700 stroke-2">
           <polygon points="2,3 22,3 12,21" />
         </svg>
       ),
     },
     {
       id: 'pill',
-      label: 'Pill / Terminator',
+      label: 'Capsule',
       category: 'flowchart',
-      icon: <div className="w-7 h-4 border-2 border-slate-700 rounded-full" />,
+      icon: <div className="w-7 h-4 border-2 border-zinc-700 rounded-full" />,
     },
     {
       id: 'cylinder',
-      label: 'Database / Cylinder',
+      label: 'Database',
       category: 'architecture',
-      icon: <Database className="w-6 h-6 text-slate-700" />,
+      icon: <Database className="w-6 h-6 text-zinc-700" />,
     },
     {
       id: 'cloud',
-      label: 'Cloud Storage',
+      label: 'Cloud Infrastructure',
       category: 'architecture',
-      icon: <Cloud className="w-6 h-6 text-slate-700" />,
+      icon: <Cloud className="w-6 h-6 text-zinc-700" />,
     },
     {
       id: 'bubble',
       label: 'Speech Bubble',
       category: 'callouts',
-      icon: <MessageSquare className="w-6 h-6 text-slate-700" />,
+      icon: <MessageSquare className="w-6 h-6 text-zinc-700" />,
     },
     {
       id: 'star',
-      label: '5-Point Star',
+      label: 'Star',
       category: 'callouts',
-      icon: <Star className="w-6 h-6 text-slate-700" />,
+      icon: <Star className="w-6 h-6 text-zinc-700" />,
     },
     {
       id: 'mindmap',
       label: 'Mindmap Node',
       category: 'flowchart',
-      icon: <Network className="w-6 h-6 text-slate-700" />,
+      icon: <Network className="w-6 h-6 text-zinc-700" />,
     },
   ];
 
@@ -115,49 +115,49 @@ export const MoreShapesModal: React.FC<MoreShapesModalProps> = ({
   });
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/30 backdrop-blur-xs">
-      <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-lg overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/25 backdrop-blur-xs select-none">
+      <div className="bg-white rounded-2xl shadow-[0_20px_60px_rgba(0,0,0,0.2)] border border-black/[0.08] w-full max-w-lg overflow-hidden animate-in fade-in zoom-in-95 duration-150">
         {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b border-slate-100">
-          <div className="flex items-center gap-2">
-            <div className="p-1.5 rounded-lg bg-purple-100 text-purple-700">
-              <Shapes className="w-4 h-4" />
+        <div className="flex items-center justify-between p-4 border-b border-black/[0.06]">
+          <div className="flex items-center gap-2.5">
+            <div className="p-2 rounded-xl bg-blue-50 text-[#0071e3]">
+              <Shapes className="w-4 h-4 stroke-[2]" />
             </div>
             <div>
-              <h3 className="font-bold text-sm text-slate-900">Shape Library</h3>
-              <p className="text-[11px] text-slate-400">Select any shape to insert on your canvas</p>
+              <h3 className="font-semibold text-sm text-zinc-900">Shape Library</h3>
+              <p className="text-[11px] text-zinc-500">Pick any vector shape for diagrams and wireframes</p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100 cursor-pointer"
+            className="w-7 h-7 text-zinc-400 hover:text-zinc-700 rounded-lg hover:bg-black/[0.04] flex items-center justify-center transition-colors cursor-pointer"
           >
             <X className="w-4 h-4" />
           </button>
         </div>
 
         {/* Search & Category Filter */}
-        <div className="p-3 border-b border-slate-100 space-y-2">
+        <div className="p-3 border-b border-black/[0.06] space-y-2.5">
           <div className="relative">
-            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
+            <Search className="w-3.5 h-3.5 text-zinc-400 absolute left-3 top-2.5" />
             <input
               type="text"
-              placeholder="Search shapes, flowcharts, architecture..."
+              placeholder="Search shapes and diagrams..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full pl-9 pr-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs outline-none focus:border-purple-400 focus:bg-white"
+              className="w-full pl-8 pr-3 py-1.5 bg-zinc-50 border border-zinc-200/80 rounded-xl text-xs outline-none focus:border-[#0071e3] focus:ring-2 focus:ring-[#0071e3]/20 focus:bg-white transition-all text-zinc-800"
             />
           </div>
 
-          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-xs">
+          <div className="flex items-center gap-1 bg-zinc-100/90 p-1 rounded-xl text-xs overflow-x-auto">
             {['all', 'basic', 'flowchart', 'architecture', 'callouts'].map((cat) => (
               <button
                 key={cat}
                 onClick={() => setActiveCategory(cat)}
-                className={`px-2.5 py-1 rounded-lg capitalize transition-colors whitespace-nowrap cursor-pointer ${
+                className={`flex-1 py-1 px-2 rounded-lg capitalize transition-all whitespace-nowrap cursor-pointer active:scale-95 text-center ${
                   activeCategory === cat
-                    ? 'bg-purple-600 text-white font-medium'
-                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                    ? 'bg-white text-zinc-900 font-semibold shadow-xs'
+                    : 'text-zinc-600 hover:text-zinc-900'
                 }`}
               >
                 {cat}
@@ -167,7 +167,7 @@ export const MoreShapesModal: React.FC<MoreShapesModalProps> = ({
         </div>
 
         {/* Shape Grid */}
-        <div className="p-4 max-h-72 overflow-y-auto grid grid-cols-4 gap-3">
+        <div className="p-4 max-h-72 overflow-y-auto grid grid-cols-4 gap-2.5">
           {filtered.map((s) => (
             <button
               key={s.id}
@@ -175,12 +175,12 @@ export const MoreShapesModal: React.FC<MoreShapesModalProps> = ({
                 onSelectShape(s.id);
                 onClose();
               }}
-              className="flex flex-col items-center justify-center p-3 rounded-xl border border-slate-200/80 hover:border-purple-400 hover:bg-purple-50/50 transition-all group cursor-pointer gap-2"
+              className="flex flex-col items-center justify-center p-3 rounded-xl border border-black/[0.06] hover:border-[#0071e3] hover:bg-blue-50/30 transition-all group cursor-pointer gap-2 active:scale-95 shadow-2xs"
             >
               <div className="h-8 flex items-center justify-center group-hover:scale-110 transition-transform">
                 {s.icon}
               </div>
-              <span className="text-[11px] font-medium text-slate-700 text-center truncate w-full">
+              <span className="text-[11px] font-medium text-zinc-700 text-center truncate w-full group-hover:text-[#0071e3]">
                 {s.label}
               </span>
             </button>

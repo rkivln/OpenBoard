@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useBoardState } from './hooks/useBoardState.ts';
 import {
   ToolType,
@@ -17,12 +17,17 @@ import { PenPopover } from './components/toolbar/popovers/PenPopover.tsx';
 import { ShapePickerPopover } from './components/toolbar/popovers/ShapePickerPopover.tsx';
 import { ReactionWheel } from './components/toolbar/popovers/ReactionWheel.tsx';
 import { GridPopover } from './components/toolbar/popovers/GridPopover.tsx';
-import { AddToolsPopover } from './components/toolbar/popovers/AddToolsPopover.tsx';
+import { CreativeHubPopover } from './components/toolbar/popovers/CreativeHubPopover.tsx';
 import { BottomRightControls } from './components/footer/BottomRightControls.tsx';
 import { Canvas } from './components/canvas/Canvas.tsx';
 import { ShareModal } from './components/modals/ShareModal.tsx';
 import { HelpModal } from './components/modals/HelpModal.tsx';
 import { MoreShapesModal } from './components/modals/MoreShapesModal.tsx';
+import { MinimapRadar } from './components/canvas/MinimapRadar.tsx';
+import { PresentationModeOverlay } from './components/canvas/PresentationModeOverlay.tsx';
+import { PhysicsPanel } from './components/toolbar/PhysicsPanel.tsx';
+import { usePhysics } from './hooks/usePhysics.ts';
+import { soundEngine } from './utils/audio.ts';
 
 export default function App() {
   const {
@@ -42,6 +47,8 @@ export default function App() {
     gridConfig,
     zoom,
     pan,
+    updateElementsLive,
+    commitLiveElements,
     addElement,
     updateElement,
     batchUpdateElements,
@@ -73,6 +80,31 @@ export default function App() {
     redo,
   } = useBoardState();
 
+  // Physics Engine hook
+  const [isPhysicsPanelOpen, setIsPhysicsPanelOpen] = useState(false);
+  const {
+    physicsConfig,
+    isPhysicsActive,
+    gravityPreset,
+    frictionPreset,
+    togglePhysics,
+    setGravityPreset,
+    setFrictionPreset,
+    setMomentumDecay,
+    setBounciness,
+    toggleMagnet,
+    shakeBoard,
+    settleAndFreeze,
+    handleStartPhysicsDrag,
+    handleMovePhysicsDrag,
+    handleEndPhysicsDrag,
+    handleApplyAttraction,
+  } = usePhysics({
+    elements,
+    onElementsUpdateLive: updateElementsLive,
+    onElementsCommit: commitLiveElements,
+  });
+
   // Active Tooling State
   const [tool, setTool] = useState<ToolType>('select');
   const [penSubTool, setPenSubTool] = useState<PenSubTool>('pencil');
@@ -95,6 +127,11 @@ export default function App() {
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
   const [isHelpModalOpen, setIsHelpModalOpen] = useState(false);
   const [isMoreShapesOpen, setIsMoreShapesOpen] = useState(false);
+  const [isPresentationOpen, setIsPresentationOpen] = useState(false);
+  const [isMinimapOpen, setIsMinimapOpen] = useState(false);
+  const [spotlightMode, setSpotlightMode] = useState(false);
+  const [isLaserActive, setIsLaserActive] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Global Keyboard Shortcuts
   useEffect(() => {
@@ -156,6 +193,17 @@ export default function App() {
           break;
         case 'c':
           setTool('comment');
+          setActivePopover('none');
+          break;
+        case 'l':
+          setTool((prev) => (prev === 'laser' ? 'select' : 'laser'));
+          setActivePopover('none');
+          break;
+        case 'm':
+          setIsMinimapOpen((prev) => !prev);
+          break;
+        case 'f':
+          setTool('frame');
           setActivePopover('none');
           break;
         case 'r':
@@ -229,7 +277,7 @@ export default function App() {
 
   // Insert Templates
   const handleInsertTemplate = useCallback(
-    (templateType: 'kanban' | 'mindmap' | 'retro') => {
+    (templateType: 'kanban' | 'mindmap' | 'retro' | 'swot' | 'funnel') => {
       const centerX = (window.innerWidth / 2 - pan.x) / zoom;
       const centerY = (window.innerHeight / 2 - pan.y) / zoom;
 
@@ -364,9 +412,344 @@ export default function App() {
             zIndex: elements.length + 10 + idx,
           });
         });
+      } else if (templateType === 'swot') {
+        const quadrants = [
+          { title: 'Strengths 💪', color: '#bbf7d0', x: centerX - 210, y: centerY - 150 },
+          { title: 'Weaknesses 🔍', color: '#fef08a', x: centerX + 10, y: centerY - 150 },
+          { title: 'Opportunities 🚀', color: '#bae6fd', x: centerX - 210, y: centerY + 30 },
+          { title: 'Threats 🛡️', color: '#fbcfe8', x: centerX + 10, y: centerY + 30 },
+        ];
+        quadrants.forEach((q, idx) => {
+          addElement({
+            id: `swot-card-${Date.now()}-${idx}`,
+            type: 'shape',
+            shapeKind: 'rounded-rect',
+            x: q.x,
+            y: q.y,
+            width: 200,
+            height: 160,
+            fillColor: '#ffffff',
+            strokeColor: '#cbd5e1',
+            strokeWidth: 2,
+            text: q.title,
+            fontSize: 13,
+            zIndex: elements.length + idx,
+          });
+          addElement({
+            id: `swot-note-${Date.now()}-${idx}`,
+            type: 'sticky',
+            x: q.x + 20,
+            y: q.y + 40,
+            width: 160,
+            height: 100,
+            color: q.color,
+            text: `Note for ${q.title}...`,
+            zIndex: elements.length + 10 + idx,
+          });
+        });
       }
     },
     [addElement, pan, zoom, elements.length]
+  );
+
+  // Creative Hub: Insert Frames / Artboards
+  const handleInsertFrame = useCallback(
+    (frameType: 'desktop' | 'mobile' | 'square' | 'sprint') => {
+      const centerCanvasX = (window.innerWidth / 2 - pan.x) / zoom;
+      const centerCanvasY = (window.innerHeight / 2 - pan.y) / zoom;
+
+      const dims = {
+        desktop: { w: 1200, h: 750, title: 'Desktop Screen 1440' },
+        mobile: { w: 380, h: 680, title: 'Mobile View 390' },
+        sprint: { w: 800, h: 500, title: 'Sprint 1 Section' },
+        square: { w: 600, h: 600, title: 'Moodboard Artboard' },
+      }[frameType] || { w: 800, h: 500, title: 'Frame' };
+
+      const newFrame: CanvasElement = {
+        id: `frame-${Date.now()}`,
+        type: 'frame',
+        title: dims.title,
+        x: Math.round(centerCanvasX - dims.w / 2),
+        y: Math.round(centerCanvasY - dims.h / 2),
+        width: dims.w,
+        height: dims.h,
+        strokeColor: '#8b5cf6',
+        zIndex: 1,
+      };
+      addElement(newFrame);
+      selectElement(newFrame.id);
+      setTool('select');
+    },
+    [addElement, selectElement, pan, zoom]
+  );
+
+  // Creative Hub: Insert Interactive Code Cards
+  const handleInsertCodeCard = useCallback(
+    (language: string) => {
+      const centerCanvasX = (window.innerWidth / 2 - pan.x) / zoom;
+      const centerCanvasY = (window.innerHeight / 2 - pan.y) / zoom;
+
+      const defaultSnippets: Record<string, string> = {
+        typescript: `// TypeScript Interface\ninterface PipelineConfig {\n  endpoint: string;\n  retryAttempts: number;\n  timeoutMs: number;\n  enableLogging: boolean;\n}\n\nexport const execute = async (cfg: PipelineConfig) => {\n  console.log("Starting pipeline:", cfg.endpoint);\n};`,
+        python: `# Python API Handler\nimport asyncio\n\nasync def process_batch(items: list[dict]) -> dict:\n    results = [item["id"] for item in items if item.get("valid")]\n    return {"processed": len(results), "ids": results}`,
+        javascript: `// Modern Async Pipeline\nexport async function fetchMetrics(boardId) {\n  const res = await fetch(\`/api/metrics/\${boardId}\`);\n  const { nodes, throughput } = await res.json();\n  return { count: nodes.length, throughput };\n}`,
+        sql: `-- Transactional Query\nSELECT \n  user_id,\n  COUNT(action_id) as total_events,\n  MAX(created_at) as last_seen\nFROM events_stream\nGROUP BY user_id\nHAVING COUNT(action_id) > 10;`,
+        html: `<!-- Canvas Widget Component -->\n<div className="flex items-center gap-2 p-3 bg-purple-50 rounded-xl">\n  <span className="w-2 h-2 rounded-full bg-purple-600 animate-ping" />\n  <span className="font-semibold text-xs">Live Active Session</span>\n</div>`,
+        css: `/* Modern Frosted Glass Aesthetic */\n.glass-panel {\n  background: rgba(255, 255, 255, 0.85);\n  backdrop-filter: blur(16px);\n  border: 1px solid rgba(226, 232, 240, 0.8);\n  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.08);\n}`,
+      };
+
+      const newCode: CanvasElement = {
+        id: `code-${Date.now()}`,
+        type: 'code',
+        title: `${language.toUpperCase()} Snippet`,
+        language,
+        code: defaultSnippets[language] || `// ${language} code block`,
+        x: Math.round(centerCanvasX - 190),
+        y: Math.round(centerCanvasY - 110),
+        width: 380,
+        height: 220,
+        zIndex: elements.length + 1,
+      };
+      addElement(newCode);
+      selectElement(newCode.id);
+      setTool('select');
+    },
+    [addElement, selectElement, pan, zoom, elements.length]
+  );
+
+  // Creative Hub: Insert Vector Stickers & Status Badges
+  const handleInsertSticker = useCallback(
+    (label: string, emoji: string, bg: string, color: string) => {
+      const centerCanvasX = (window.innerWidth / 2 - pan.x) / zoom;
+      const centerCanvasY = (window.innerHeight / 2 - pan.y) / zoom;
+
+      const newSticker: CanvasElement = {
+        id: `sticker-${Date.now()}`,
+        type: 'stamp',
+        stampKind: 'circle-badge',
+        badgeLabel: label,
+        badgeBg: bg,
+        badgeColor: color,
+        emoji,
+        x: Math.round(centerCanvasX - 70),
+        y: Math.round(centerCanvasY - 20),
+        width: 140,
+        height: 40,
+        zIndex: elements.length + 2,
+      };
+      addElement(newSticker);
+      selectElement(newSticker.id);
+      setTool('select');
+    },
+    [addElement, selectElement, pan, zoom, elements.length]
+  );
+
+  // Creative Hub: AI & Smart Diagram Generation
+  const handleGenerateAiDiagram = useCallback(
+    async (promptText: string) => {
+      try {
+        const res = await fetch('/api/ai/generate-diagram', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ prompt: promptText }),
+        });
+        const data = await res.json();
+        if (!data || !data.nodes) return;
+
+        const centerCanvasX = (window.innerWidth / 2 - pan.x) / zoom;
+        const centerCanvasY = (window.innerHeight / 2 - pan.y) / zoom;
+
+        const nodes = data.nodes || [];
+        const connections = data.connections || [];
+        const notes = data.stickyNotes || [];
+
+        const nodeSpacingX = 220;
+        const totalW = nodes.length * nodeSpacingX;
+        const startX = centerCanvasX - totalW / 2;
+
+        const idMap = new Map<string, string>();
+        const nodeCoords = new Map<string, { x: number; y: number; w: number; h: number }>();
+
+        // 1. Boundary Frame
+        const frameId = `frame-${Date.now()}`;
+        const frameW = Math.max(totalW + 160, 800);
+        const frameH = 460;
+        const frameX = Math.round(startX - 80);
+        const frameY = Math.round(centerCanvasY - 180);
+
+        addElement({
+          id: frameId,
+          type: 'frame',
+          title: data.title || promptText,
+          x: frameX,
+          y: frameY,
+          width: frameW,
+          height: frameH,
+          strokeColor: '#8b5cf6',
+          zIndex: elements.length + 1,
+        });
+
+        // 2. Nodes
+        const colorPalette: Record<string, { fill: string; stroke: string }> = {
+          purple: { fill: '#f5f3ff', stroke: '#8b5cf6' },
+          blue: { fill: '#eff6ff', stroke: '#3b82f6' },
+          emerald: { fill: '#ecfdf5', stroke: '#10b981' },
+          amber: { fill: '#fffbeb', stroke: '#f59e0b' },
+          rose: { fill: '#fff1f2', stroke: '#f43f5e' },
+        };
+
+        nodes.forEach((n: any, idx: number) => {
+          const actualId = `ai-node-${Date.now()}-${idx}`;
+          idMap.set(n.id, actualId);
+
+          const colorScheme = colorPalette[n.colorTheme] || colorPalette.purple;
+          const nx = Math.round(startX + idx * nodeSpacingX);
+          const ny = Math.round(centerCanvasY - 30);
+          const nw = 150;
+          const nh = 65;
+
+          nodeCoords.set(actualId, { x: nx, y: ny, w: nw, h: nh });
+
+          addElement({
+            id: actualId,
+            type: 'shape',
+            shapeKind: (n.shapeKind || 'rounded-rect') as any,
+            x: nx,
+            y: ny,
+            width: nw,
+            height: nh,
+            fillColor: colorScheme.fill,
+            strokeColor: colorScheme.stroke,
+            strokeWidth: 2,
+            text: n.text,
+            fontSize: 13,
+            bold: true,
+            zIndex: elements.length + 10 + idx,
+          });
+        });
+
+        // 3. Connectors
+        connections.forEach((c: any, idx: number) => {
+          const fromActual = idMap.get(c.from);
+          const toActual = idMap.get(c.to);
+          if (fromActual && toActual) {
+            const fromBox = nodeCoords.get(fromActual);
+            const toBox = nodeCoords.get(toActual);
+            if (fromBox && toBox) {
+              const p1: [number, number] = [fromBox.x + fromBox.w, fromBox.y + fromBox.h / 2];
+              const p2: [number, number] = [toBox.x, toBox.y + toBox.h / 2];
+
+              addElement({
+                id: `ai-conn-${Date.now()}-${idx}`,
+                type: 'connector',
+                connectorKind: (c.kind || 'arrow') as any,
+                fromId: fromActual,
+                toId: toActual,
+                fromSide: 'right',
+                toSide: 'left',
+                x: p1[0],
+                y: p1[1],
+                endX: p2[0],
+                endY: p2[1],
+                points: [p1, p2],
+                strokeColor: '#64748b',
+                strokeWidth: 2,
+                text: c.label || '',
+                zIndex: elements.length + 50 + idx,
+              });
+            }
+          }
+        });
+
+        // 4. Sticky reflections
+        notes.forEach((note: any, idx: number) => {
+          addElement({
+            id: `ai-note-${Date.now()}-${idx}`,
+            type: 'sticky',
+            color: note.color || 'yellow',
+            text: note.text,
+            x: Math.round(startX + idx * 260 + 20),
+            y: Math.round(centerCanvasY + 100),
+            width: 170,
+            height: 120,
+            rotation: (Math.random() - 0.5) * 3,
+            zIndex: elements.length + 80 + idx,
+          });
+        });
+
+        soundEngine.playPop();
+      } catch (err) {
+        console.error('Failed to generate AI diagram:', err);
+      }
+    },
+    [addElement, pan, zoom, elements.length]
+  );
+
+  // File picker handler for images
+  const handleTriggerImageUpload = useCallback(() => {
+    fileInputRef.current?.click();
+  }, []);
+
+  const handleFileInputChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (file && file.type.startsWith('image/')) {
+        const reader = new FileReader();
+        reader.onload = (evt) => {
+          const url = evt.target?.result as string;
+          const img = new Image();
+          img.onload = () => {
+            const maxDim = 420;
+            let w = img.naturalWidth || 320;
+            let h = img.naturalHeight || 240;
+            if (w > maxDim || h > maxDim) {
+              const ratio = Math.min(maxDim / w, maxDim / h);
+              w = Math.round(w * ratio);
+              h = Math.round(h * ratio);
+            }
+            const centerCanvasX = (window.innerWidth / 2 - pan.x) / zoom;
+            const centerCanvasY = (window.innerHeight / 2 - pan.y) / zoom;
+            const newImg: CanvasElement = {
+              id: `img-${Date.now()}`,
+              type: 'image',
+              x: Math.round(centerCanvasX - w / 2),
+              y: Math.round(centerCanvasY - h / 2),
+              width: w,
+              height: h,
+              url,
+              zIndex: elements.length + 1,
+            };
+            soundEngine.playPop();
+            addElement(newImg);
+            selectElement(newImg.id);
+          };
+          img.src = url;
+        };
+        reader.readAsDataURL(file);
+      }
+      e.target.value = '';
+    },
+    [pan, zoom, elements.length, addElement, selectElement]
+  );
+
+  // Navigate Camera to a Box (Presentation Slide transition)
+  const handleNavigateToBox = useCallback(
+    (x: number, y: number, width: number, height: number) => {
+      const pad = 100;
+      const availW = window.innerWidth - pad * 2;
+      const availH = window.innerHeight - pad * 2;
+
+      const targetZoom = Math.min(availW / width, availH / height, 1.6);
+      const centerX = x + width / 2;
+      const centerY = y + height / 2;
+
+      const targetPanX = window.innerWidth / 2 - centerX * targetZoom;
+      const targetPanY = window.innerHeight / 2 - centerY * targetZoom;
+
+      setZoom(targetZoom);
+      setPan({ x: targetPanX, y: targetPanY });
+    },
+    [setZoom, setPan]
   );
 
   return (
@@ -403,6 +786,28 @@ export default function App() {
                 : 'dots',
           })
         }
+        onStartPresentation={() => setIsPresentationOpen(true)}
+        isPhysicsActive={isPhysicsActive}
+        isPhysicsPanelOpen={isPhysicsPanelOpen}
+        onTogglePhysicsPanel={() => setIsPhysicsPanelOpen(!isPhysicsPanelOpen)}
+      />
+
+      {/* Physics Sandbox Control Panel */}
+      <PhysicsPanel
+        isOpen={isPhysicsPanelOpen}
+        onClose={() => setIsPhysicsPanelOpen(false)}
+        isPhysicsActive={isPhysicsActive}
+        onTogglePhysics={togglePhysics}
+        gravityPreset={gravityPreset}
+        onSelectGravityPreset={setGravityPreset}
+        frictionPreset={frictionPreset}
+        onSelectFrictionPreset={setFrictionPreset}
+        onSelectMomentumDecay={setMomentumDecay}
+        physicsConfig={physicsConfig}
+        onSelectBounciness={setBounciness}
+        onToggleMagnet={toggleMagnet}
+        onShakeBoard={shakeBoard}
+        onSettleAndFreeze={settleAndFreeze}
       />
 
       {/* 3. FLOATING TIMER, MUSIC, AND VOTING PANEL (Screenshot 5) */}
@@ -459,6 +864,13 @@ export default function App() {
         onZoomChange={setZoom}
         onCursorMove={updateCursor}
         onToolChange={setTool}
+        spotlightMode={spotlightMode}
+        isLaserActive={tool === 'laser' || isLaserActive}
+        isPhysicsActive={isPhysicsActive}
+        onStartPhysicsDrag={handleStartPhysicsDrag}
+        onMovePhysicsDrag={handleMovePhysicsDrag}
+        onEndPhysicsDrag={handleEndPhysicsDrag}
+        onApplyAttraction={handleApplyAttraction}
       />
 
       {/* 5. CONTEXTUAL TOOL POPOVERS (Floating directly above toolbar) */}
@@ -526,15 +938,20 @@ export default function App() {
         />
       )}
 
-      {/* Add / Templates Popover */}
+      {/* Creative Studio & AI Templates Popover */}
       {activePopover === 'more' && (
-        <AddToolsPopover
+        <CreativeHubPopover
           onInsertTemplate={handleInsertTemplate}
+          onInsertFrame={handleInsertFrame}
+          onInsertCodeCard={handleInsertCodeCard}
+          onInsertSticker={handleInsertSticker}
+          onGenerateAiDiagram={handleGenerateAiDiagram}
+          onTriggerImageUpload={handleTriggerImageUpload}
           onClose={() => setActivePopover('none')}
         />
       )}
 
-      {/* 6. PRIMARY BOTTOM TOOLBAR (Screenshots 1, 2, 3, 4, 6) */}
+      {/* 6. PRIMARY BOTTOM TOOLBAR */}
       <BottomToolbar
         tool={tool}
         onSelectTool={(t) => {
@@ -550,16 +967,52 @@ export default function App() {
         onQuickAddSticky={handleQuickAddSticky}
       />
 
-      {/* 7. BOTTOM-RIGHT ZOOM & SHORTCUT CONTROLS (Screenshots 5 & 6) */}
+      {/* 7. BOTTOM-RIGHT ZOOM & SHORTCUT CONTROLS */}
       <BottomRightControls
         zoom={zoom}
         onZoomIn={() => setZoom(Math.min(zoom * 1.15, 3))}
         onZoomOut={() => setZoom(Math.max(zoom * 0.85, 0.2))}
         onResetZoom={() => setZoom(1)}
         onOpenHelp={() => setIsHelpModalOpen(true)}
+        isMinimapOpen={isMinimapOpen}
+        onToggleMinimap={() => setIsMinimapOpen(!isMinimapOpen)}
       />
 
-      {/* 8. MODALS */}
+      {/* 8. RADAR MINIMAP */}
+      <MinimapRadar
+        elements={elements}
+        zoom={zoom}
+        pan={pan}
+        onNavigatePan={setPan}
+        isOpen={isMinimapOpen}
+        onToggle={() => setIsMinimapOpen(!isMinimapOpen)}
+      />
+
+      {/* 9. PRESENTATION SLIDESHOW MODE */}
+      <PresentationModeOverlay
+        isOpen={isPresentationOpen}
+        elements={elements}
+        onClose={() => setIsPresentationOpen(false)}
+        onNavigateToBox={handleNavigateToBox}
+        spotlightMode={spotlightMode}
+        onToggleSpotlight={() => setSpotlightMode(!spotlightMode)}
+        isLaserActive={tool === 'laser' || isLaserActive}
+        onToggleLaser={() => {
+          setIsLaserActive((prev) => !prev);
+          setTool((prev) => (prev === 'laser' ? 'select' : 'laser'));
+        }}
+      />
+
+      {/* Hidden File Input for Image Uploads */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        onChange={handleFileInputChange}
+        className="hidden"
+      />
+
+      {/* 10. MODALS */}
       <ShareModal
         isOpen={isShareModalOpen}
         onClose={() => setIsShareModalOpen(false)}

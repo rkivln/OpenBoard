@@ -10,6 +10,9 @@ import {
   CommentElement,
   CommentReply,
   StickyColor,
+  ImageElement,
+  FrameElement,
+  CodeElement,
 } from '../../types.ts';
 import {
   MessageSquare,
@@ -24,6 +27,10 @@ import {
   ArrowDown,
   ArrowLeft,
   ArrowUp,
+  Copy,
+  Code as CodeIcon,
+  Layout,
+  Image as ImageIcon,
 } from 'lucide-react';
 import { EditableTableView } from './EditableTableView.tsx';
 import { ShapeContextBar } from './ShapeContextBar.tsx';
@@ -988,9 +995,27 @@ export const CanvasElementView: React.FC<CanvasElementViewProps> = ({
     );
   }
 
-  // 7. STAMP / REACTION ELEMENT
+  // 7. STAMP / REACTION / STICKER ELEMENT
   if (element.type === 'stamp') {
+    const stampEl = element as any;
+    const isBadge = !!stampEl.badgeLabel;
+
     const renderStampContent = () => {
+      if (isBadge) {
+        return (
+          <div
+            className="px-3 py-1.5 rounded-xl border border-black/10 shadow-xs flex items-center gap-1.5 font-bold text-xs select-none tracking-wide cursor-move transform hover:scale-105 transition-transform"
+            style={{
+              backgroundColor: stampEl.badgeBg || '#dcfce7',
+              color: stampEl.badgeColor || '#15803d',
+            }}
+          >
+            <span className="text-sm">{stampEl.emoji || '✨'}</span>
+            <span>{stampEl.badgeLabel}</span>
+          </div>
+        );
+      }
+
       switch (element.stampKind) {
         case 'heart':
           return (
@@ -1047,8 +1072,8 @@ export const CanvasElementView: React.FC<CanvasElementViewProps> = ({
       <foreignObject
         x={element.x}
         y={element.y}
-        width={60}
-        height={60}
+        width={isBadge ? Math.max(140, stampEl.width || 140) : 60}
+        height={isBadge ? 42 : 60}
         onMouseDown={(e) => {
           e.stopPropagation();
           onSelect(e, element.id);
@@ -1061,7 +1086,11 @@ export const CanvasElementView: React.FC<CanvasElementViewProps> = ({
         >
           {renderStampContent()}
           {isSelected && (
-            <div className="absolute -inset-1 border-2 border-[#8B5CF6] pointer-events-none rounded-full" />
+            <div
+              className={`absolute -inset-1 border-2 border-[#8B5CF6] pointer-events-none ${
+                isBadge ? 'rounded-xl' : 'rounded-full'
+              }`}
+            />
           )}
         </div>
       </foreignObject>
@@ -1148,6 +1177,312 @@ export const CanvasElementView: React.FC<CanvasElementViewProps> = ({
 
           {isSelected && (
             <div className="absolute -inset-1 border-2 border-[#8B5CF6] pointer-events-none rounded-2xl" />
+          )}
+        </div>
+      </foreignObject>
+    );
+  }
+
+  // 9. IMAGE ELEMENT (User upload, screenshot paste, moodboard asset)
+  if (element.type === 'image') {
+    const imgElem = element as ImageElement;
+
+    return (
+      <foreignObject
+        x={element.x}
+        y={element.y}
+        width={imgElem.width}
+        height={imgElem.height + (imgElem.caption ? 30 : 0)}
+        onMouseDown={(e) => {
+          e.stopPropagation();
+          onSelect(e, element.id);
+        }}
+        className="overflow-visible select-none"
+      >
+        <div
+          id={`elem-${element.id}`}
+          className={`relative w-full h-full flex flex-col cursor-move group ${
+            isSelected ? 'ring-2 ring-[#38bdf8] rounded-xl shadow-lg' : ''
+          }`}
+          style={{ transform: `rotate(${element.rotation || 0}deg)` }}
+        >
+          <div
+            className="w-full overflow-hidden rounded-xl bg-slate-100 shadow-md border border-slate-200/80 relative"
+            style={{ height: `${imgElem.height}px` }}
+          >
+            <img
+              src={imgElem.url}
+              alt={imgElem.caption || 'Canvas image'}
+              className="w-full h-full object-cover pointer-events-none"
+              loading="lazy"
+            />
+
+            {/* Quick delete & duplicate buttons on hover when selected */}
+            {isSelected && (
+              <div
+                className="absolute top-2 right-2 flex items-center gap-1 bg-slate-900/80 backdrop-blur-md rounded-lg p-1 text-white z-30"
+                onMouseDown={(e) => e.stopPropagation()}
+              >
+                {onDuplicate && (
+                  <button
+                    onClick={() => onDuplicate(element.id)}
+                    className="p-1 hover:bg-slate-700 rounded transition-colors"
+                    title="Duplicate"
+                  >
+                    <Copy className="w-3.5 h-3.5" />
+                  </button>
+                )}
+                <button
+                  onClick={() => onDelete(element.id)}
+                  className="p-1 hover:bg-rose-600 rounded transition-colors"
+                  title="Delete image"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* Caption */}
+          {imgElem.caption && (
+            <div className="text-[11px] font-medium text-slate-500 text-center mt-1 truncate px-1">
+              {imgElem.caption}
+            </div>
+          )}
+
+          {/* Corner Resize Handles */}
+          {isSelected && onStartResize && (
+            <>
+              <div
+                onMouseDown={(e) => {
+                  e.stopPropagation();
+                  onStartResize(e, element.id, 'nw');
+                }}
+                className="absolute -top-1.5 -left-1.5 w-3 h-3 bg-white border-2 border-[#0284c7] rounded-xs shadow-xs cursor-nwse-resize z-50 hover:scale-125 transition-transform"
+              />
+              <div
+                onMouseDown={(e) => {
+                  e.stopPropagation();
+                  onStartResize(e, element.id, 'ne');
+                }}
+                className="absolute -top-1.5 -right-1.5 w-3 h-3 bg-white border-2 border-[#0284c7] rounded-xs shadow-xs cursor-nesw-resize z-50 hover:scale-125 transition-transform"
+              />
+              <div
+                onMouseDown={(e) => {
+                  e.stopPropagation();
+                  onStartResize(e, element.id, 'se');
+                }}
+                className="absolute -bottom-1.5 -right-1.5 w-3 h-3 bg-white border-2 border-[#0284c7] rounded-xs shadow-xs cursor-nwse-resize z-50 hover:scale-125 transition-transform"
+              />
+              <div
+                onMouseDown={(e) => {
+                  e.stopPropagation();
+                  onStartResize(e, element.id, 'sw');
+                }}
+                className="absolute -bottom-1.5 -left-1.5 w-3 h-3 bg-white border-2 border-[#0284c7] rounded-xs shadow-xs cursor-nesw-resize z-50 hover:scale-125 transition-transform"
+              />
+            </>
+          )}
+        </div>
+      </foreignObject>
+    );
+  }
+
+  // 10. FRAME / ARTBOARD ELEMENT (Presentation slides & grouping container)
+  if (element.type === 'frame') {
+    const frameElem = element as FrameElement;
+    const themeColor = frameElem.themeColor || '#8b5cf6';
+
+    return (
+      <foreignObject
+        x={element.x}
+        y={element.y - 28}
+        width={frameElem.width}
+        height={frameElem.height + 28}
+        onMouseDown={(e) => {
+          const target = e.target as HTMLElement;
+          if (target.tagName !== 'INPUT') {
+            e.stopPropagation();
+            onSelect(e, element.id);
+          }
+        }}
+        className="overflow-visible select-none"
+      >
+        <div className="relative w-full h-full flex flex-col">
+          {/* Frame Title Tab (Figma/FigJam style) */}
+          <div className="flex items-center gap-1.5 h-7 px-3 bg-slate-100/90 border border-slate-300/80 border-b-0 rounded-t-xl w-max max-w-[80%] cursor-move shadow-2xs backdrop-blur-xs">
+            <Layout className="w-3.5 h-3.5 text-purple-600 shrink-0" />
+            {isEditingText ? (
+              <input
+                ref={textInputRef as any}
+                type="text"
+                value={editText}
+                onChange={(e) => setEditText(e.target.value)}
+                onBlur={handleFinishText}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') handleFinishText();
+                }}
+                className="text-xs font-semibold text-slate-800 bg-transparent outline-none w-32 border-b border-purple-400"
+              />
+            ) : (
+              <span
+                onDoubleClick={(e) => {
+                  e.stopPropagation();
+                  setIsEditingText(true);
+                  setEditText(frameElem.title || 'Frame');
+                }}
+                className="text-xs font-semibold text-slate-800 truncate"
+              >
+                {frameElem.title || 'Untitled Frame'}
+              </span>
+            )}
+            <span className="text-[10px] text-slate-400 font-mono ml-1">
+              {Math.round(frameElem.width)} × {Math.round(frameElem.height)}
+            </span>
+          </div>
+
+          {/* Frame Canvas Boundary */}
+          <div
+            id={`elem-${element.id}`}
+            className={`w-full rounded-b-xl rounded-tr-xl border-2 border-dashed transition-all relative ${
+              isSelected
+                ? 'border-purple-500 bg-purple-50/10 shadow-lg'
+                : 'border-slate-300 hover:border-slate-400 bg-white/40'
+            }`}
+            style={{
+              height: `${frameElem.height}px`,
+            }}
+          >
+            {/* Quick delete & duplicate buttons on hover when selected */}
+            {isSelected && (
+              <div
+                className="absolute top-2 right-2 flex items-center gap-1 bg-white/95 backdrop-blur-md rounded-lg p-1 text-slate-700 border border-slate-200 shadow-sm z-30"
+                onMouseDown={(e) => e.stopPropagation()}
+              >
+                {onDuplicate && (
+                  <button
+                    onClick={() => onDuplicate(element.id)}
+                    className="p-1 hover:bg-slate-100 rounded transition-colors cursor-pointer"
+                    title="Duplicate Frame"
+                  >
+                    <Copy className="w-3.5 h-3.5" />
+                  </button>
+                )}
+                <button
+                  onClick={() => onDelete(element.id)}
+                  className="p-1 hover:bg-rose-50 text-slate-400 hover:text-rose-600 rounded transition-colors cursor-pointer"
+                  title="Delete Frame"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            )}
+
+            {/* Resize Handles */}
+            {isSelected && onStartResize && (
+              <>
+                <div
+                  onMouseDown={(e) => {
+                    e.stopPropagation();
+                    onStartResize(e, element.id, 'se');
+                  }}
+                  className="absolute -bottom-1.5 -right-1.5 w-3.5 h-3.5 bg-white border-2 border-purple-600 rounded-xs shadow-xs cursor-nwse-resize z-50 hover:scale-125 transition-transform"
+                  title="Resize Frame"
+                />
+                <div
+                  onMouseDown={(e) => {
+                    e.stopPropagation();
+                    onStartResize(e, element.id, 'sw');
+                  }}
+                  className="absolute -bottom-1.5 -left-1.5 w-3.5 h-3.5 bg-white border-2 border-purple-600 rounded-xs shadow-xs cursor-nesw-resize z-50 hover:scale-125 transition-transform"
+                />
+              </>
+            )}
+          </div>
+        </div>
+      </foreignObject>
+    );
+  }
+
+  // 11. CODE ELEMENT (Syntax card with dark theme, line numbers, copy button)
+  if (element.type === 'code') {
+    const codeElem = element as CodeElement;
+    const [copied, setCopied] = useState(false);
+
+    const handleCopy = () => {
+      navigator.clipboard.writeText(codeElem.code || '');
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    };
+
+    return (
+      <foreignObject
+        x={element.x}
+        y={element.y}
+        width={codeElem.width || 380}
+        height={codeElem.height || 220}
+        onMouseDown={(e) => {
+          const target = e.target as HTMLElement;
+          if (target.tagName !== 'TEXTAREA' && target.tagName !== 'BUTTON') {
+            e.stopPropagation();
+            onSelect(e, element.id);
+          }
+        }}
+        className="overflow-visible select-none"
+      >
+        <div
+          id={`elem-${element.id}`}
+          className={`w-full h-full rounded-2xl bg-slate-900 text-slate-100 shadow-xl border border-slate-700/80 flex flex-col overflow-hidden cursor-move font-mono text-xs select-text ${
+            isSelected ? 'ring-2 ring-purple-500' : ''
+          }`}
+        >
+          {/* macOS Style Window Bar */}
+          <div className="flex items-center justify-between px-3 py-2 bg-slate-950/80 border-b border-slate-800 shrink-0 select-none">
+            <div className="flex items-center gap-1.5">
+              <div className="w-2.5 h-2.5 rounded-full bg-rose-500/80" />
+              <div className="w-2.5 h-2.5 rounded-full bg-amber-500/80" />
+              <div className="w-2.5 h-2.5 rounded-full bg-emerald-500/80" />
+              <span className="text-[10px] text-slate-400 font-sans ml-2 font-medium">
+                {codeElem.title || `${codeElem.language || 'code'}.ts`}
+              </span>
+            </div>
+
+            <div className="flex items-center gap-1.5">
+              <span className="text-[9px] uppercase tracking-wider text-purple-400 bg-purple-950/60 px-1.5 py-0.5 rounded border border-purple-800/50">
+                {codeElem.language || 'typescript'}
+              </span>
+              <button
+                onClick={handleCopy}
+                className="p-1 hover:bg-slate-800 text-slate-400 hover:text-white rounded transition-colors cursor-pointer"
+                title="Copy Code"
+              >
+                {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+              </button>
+            </div>
+          </div>
+
+          {/* Editable Code Editor Area */}
+          <div className="flex-1 p-3 overflow-auto bg-slate-900 flex text-[12px] leading-relaxed select-text">
+            <textarea
+              value={codeElem.code || ''}
+              onChange={(e) => onUpdate({ code: e.target.value })}
+              onMouseDown={(e) => e.stopPropagation()}
+              spellCheck={false}
+              className="w-full h-full bg-transparent text-emerald-300 font-mono outline-none resize-none border-none placeholder-slate-600"
+              placeholder="// Type your code here..."
+            />
+          </div>
+
+          {/* Resize Handle */}
+          {isSelected && onStartResize && (
+            <div
+              onMouseDown={(e) => {
+                e.stopPropagation();
+                onStartResize(e, element.id, 'se');
+              }}
+              className="absolute -bottom-1.5 -right-1.5 w-3.5 h-3.5 bg-white border-2 border-purple-500 rounded-xs shadow-xs cursor-nwse-resize z-50 hover:scale-125 transition-transform"
+              title="Resize Code Card"
+            />
           )}
         </div>
       </foreignObject>

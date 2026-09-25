@@ -77,41 +77,36 @@ export const TopLeftControl: React.FC<TopLeftControlProps> = ({
   };
 
   return (
-    <div className="fixed top-4 left-4 z-40 flex items-center">
-      {/* Main Floating Rounded Container */}
+    <div className="fixed top-4 left-4 z-40 flex items-center select-none">
+      {/* Main Apple / Google Refined Bar */}
       <div
         id="top-left-workspace-bar"
-        className="flex items-center h-11 px-2.5 bg-white/95 backdrop-blur-md rounded-2xl shadow-[0_2px_12px_rgba(0,0,0,0.08)] border border-slate-200/80 text-slate-800 transition-all hover:shadow-[0_4px_16px_rgba(0,0,0,0.1)]"
+        className="flex items-center h-10 px-2 bg-white/85 backdrop-blur-2xl rounded-2xl shadow-[0_4px_20px_rgba(0,0,0,0.06),0_1px_2px_rgba(0,0,0,0.04)] border border-black/[0.08] text-zinc-800 transition-all hover:shadow-[0_6px_24px_rgba(0,0,0,0.08)]"
       >
-        {/* Workspace Logo + Dropdown Arrow */}
+        {/* Workspace Menu */}
         <div className="relative" ref={menuRef}>
           <button
             id="workspace-dropdown-btn"
             onClick={() => setIsMenuOpen(!isMenuOpen)}
-            className="flex items-center gap-1.5 px-2 py-1 rounded-xl text-slate-700 hover:bg-slate-100 hover:text-purple-600 transition-colors cursor-pointer"
-            title="OpenBoard workspace menu"
+            className="flex items-center gap-1.5 px-1.5 py-1 rounded-xl text-zinc-700 hover:text-zinc-900 hover:bg-black/[0.04] transition-colors cursor-pointer active:scale-95"
+            title="OpenBoard Menu"
           >
-            {/* Custom geometric logo reproducing the reference icon */}
-            <div className="w-5 h-5 flex items-center justify-center text-purple-600">
-              <svg viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5">
-                <circle cx="6" cy="6" r="3.5" fill="#8B5CF6" />
-                <circle cx="18" cy="6" r="3.5" fill="#A78BFA" />
-                <circle cx="6" cy="18" r="3.5" fill="#C4B5FD" />
-                <rect x="14.5" y="14.5" width="7" height="7" rx="2" fill="#7C3AED" />
-              </svg>
+            {/* Apple style modern app icon */}
+            <div className="w-5 h-5 rounded-lg bg-gradient-to-tr from-[#0071e3] to-[#42a5f5] text-white flex items-center justify-center shadow-2xs font-bold text-[10px]">
+              OB
             </div>
-            <ChevronDown className={`w-3.5 h-3.5 text-slate-400 transition-transform ${isMenuOpen ? 'rotate-180' : ''}`} />
+            <ChevronDown className={`w-3 h-3 text-zinc-400 transition-transform duration-150 ${isMenuOpen ? 'rotate-180' : ''}`} />
           </button>
 
-          {/* Dropdown Menu */}
+          {/* Apple macOS style Dropdown Menu */}
           {isMenuOpen && (
-            <div className="absolute top-12 left-0 w-60 bg-white rounded-2xl shadow-xl border border-slate-100 py-2 z-50 text-xs text-slate-700 animate-in fade-in zoom-in-95 duration-100">
-              <div className="px-3.5 py-1.5 border-b border-slate-100 mb-1">
-                <div className="font-semibold text-slate-900 text-sm flex items-center gap-1.5">
-                  <span className="text-purple-600 font-bold">OpenBoard</span>
-                  <span className="text-[10px] font-medium bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded-full">v1.2</span>
+            <div className="absolute top-11 left-0 w-60 bg-white/95 backdrop-blur-2xl rounded-2xl shadow-[0_12px_40px_rgba(0,0,0,0.15),0_1px_2px_rgba(0,0,0,0.04)] border border-black/[0.08] p-1.5 z-50 text-xs text-zinc-700 animate-in fade-in zoom-in-95 duration-100">
+              <div className="px-3 py-2 border-b border-black/[0.06] mb-1">
+                <div className="font-semibold text-zinc-900 text-xs flex items-center gap-1.5">
+                  <span>OpenBoard</span>
+                  <span className="text-[10px] text-zinc-500 font-normal">Workspace</span>
                 </div>
-                <div className="text-[11px] text-slate-400">Think. Create. Collaborate.</div>
+                <div className="text-[11px] text-zinc-400">Real-time collaborative canvas</div>
               </div>
 
               <button
@@ -119,9 +114,9 @@ export const TopLeftControl: React.FC<TopLeftControlProps> = ({
                   setIsMenuOpen(false);
                   onNewBoard();
                 }}
-                className="w-full px-3.5 py-2 flex items-center gap-2.5 hover:bg-slate-50 transition-colors text-left"
+                className="w-full px-2.5 py-1.5 rounded-lg flex items-center gap-2.5 hover:bg-zinc-100 transition-colors text-left cursor-pointer active:scale-98"
               >
-                <FolderPlus className="w-4 h-4 text-slate-500" />
+                <FolderPlus className="w-3.5 h-3.5 text-zinc-500" />
                 <span>New Board</span>
               </button>
 
@@ -130,16 +125,16 @@ export const TopLeftControl: React.FC<TopLeftControlProps> = ({
                   setIsMenuOpen(false);
                   handleDuplicateClick();
                 }}
-                className="w-full px-3.5 py-2 flex items-center gap-2.5 hover:bg-slate-50 transition-colors text-left"
+                className="w-full px-2.5 py-1.5 rounded-lg flex items-center gap-2.5 hover:bg-zinc-100 transition-colors text-left cursor-pointer active:scale-98"
               >
-                <Copy className="w-4 h-4 text-slate-500" />
+                <Copy className="w-3.5 h-3.5 text-zinc-500" />
                 <span>Duplicate Board</span>
               </button>
 
-              <div className="my-1 border-t border-slate-100" />
+              <div className="my-1 border-t border-black/[0.06]" />
 
-              <div className="px-3 py-1 text-[10px] font-semibold tracking-wider text-slate-400 uppercase">
-                Export Options
+              <div className="px-2.5 py-1 text-[10px] font-semibold tracking-wider text-zinc-400 uppercase">
+                Export
               </div>
 
               <button
@@ -147,10 +142,10 @@ export const TopLeftControl: React.FC<TopLeftControlProps> = ({
                   setIsMenuOpen(false);
                   onExport('png');
                 }}
-                className="w-full px-3.5 py-1.5 flex items-center gap-2.5 hover:bg-slate-50 transition-colors text-left"
+                className="w-full px-2.5 py-1.5 rounded-lg flex items-center gap-2.5 hover:bg-zinc-100 transition-colors text-left cursor-pointer active:scale-98"
               >
-                <Download className="w-4 h-4 text-slate-500" />
-                <span>Export as PNG Image</span>
+                <Download className="w-3.5 h-3.5 text-zinc-500" />
+                <span>Export as PNG</span>
               </button>
 
               <button
@@ -158,10 +153,10 @@ export const TopLeftControl: React.FC<TopLeftControlProps> = ({
                   setIsMenuOpen(false);
                   onExport('svg');
                 }}
-                className="w-full px-3.5 py-1.5 flex items-center gap-2.5 hover:bg-slate-50 transition-colors text-left"
+                className="w-full px-2.5 py-1.5 rounded-lg flex items-center gap-2.5 hover:bg-zinc-100 transition-colors text-left cursor-pointer active:scale-98"
               >
-                <Download className="w-4 h-4 text-slate-500" />
-                <span>Export as SVG Vector</span>
+                <Download className="w-3.5 h-3.5 text-zinc-500" />
+                <span>Export as SVG</span>
               </button>
 
               <button
@@ -169,22 +164,22 @@ export const TopLeftControl: React.FC<TopLeftControlProps> = ({
                   setIsMenuOpen(false);
                   onExport('json');
                 }}
-                className="w-full px-3.5 py-1.5 flex items-center gap-2.5 hover:bg-slate-50 transition-colors text-left"
+                className="w-full px-2.5 py-1.5 rounded-lg flex items-center gap-2.5 hover:bg-zinc-100 transition-colors text-left cursor-pointer active:scale-98"
               >
-                <Download className="w-4 h-4 text-slate-500" />
+                <Download className="w-3.5 h-3.5 text-zinc-500" />
                 <span>Export as JSON</span>
               </button>
 
-              <div className="my-1 border-t border-slate-100" />
+              <div className="my-1 border-t border-black/[0.06]" />
 
               <button
                 onClick={() => {
                   setIsMenuOpen(false);
                   onClear();
                 }}
-                className="w-full px-3.5 py-2 flex items-center gap-2.5 hover:bg-rose-50 text-rose-600 transition-colors text-left"
+                className="w-full px-2.5 py-1.5 rounded-lg flex items-center gap-2.5 hover:bg-rose-50 text-rose-600 transition-colors text-left cursor-pointer active:scale-98"
               >
-                <Trash2 className="w-4 h-4" />
+                <Trash2 className="w-3.5 h-3.5 text-rose-500" />
                 <span>Clear Canvas</span>
               </button>
 
@@ -193,20 +188,20 @@ export const TopLeftControl: React.FC<TopLeftControlProps> = ({
                   setIsMenuOpen(false);
                   onOpenHelp();
                 }}
-                className="w-full px-3.5 py-2 flex items-center gap-2.5 hover:bg-slate-50 transition-colors text-left"
+                className="w-full px-2.5 py-1.5 rounded-lg flex items-center gap-2.5 hover:bg-zinc-100 transition-colors text-left cursor-pointer active:scale-98"
               >
-                <HelpCircle className="w-4 h-4 text-slate-500" />
+                <HelpCircle className="w-3.5 h-3.5 text-zinc-500" />
                 <span>Shortcuts & Help</span>
               </button>
             </div>
           )}
         </div>
 
-        {/* Divider */}
-        <div className="w-px h-5 bg-slate-200 mx-1.5" />
+        {/* Apple Hairline Divider */}
+        <div className="w-px h-4 bg-black/[0.08] mx-1" />
 
         {/* Board Title (Clicking allows inline editing) */}
-        <div className="px-1.5">
+        <div className="px-1">
           {isEditing ? (
             <input
               ref={inputRef}
@@ -221,41 +216,41 @@ export const TopLeftControl: React.FC<TopLeftControlProps> = ({
                   setIsEditing(false);
                 }
               }}
-              className="h-7 px-2 text-sm font-medium text-slate-800 bg-slate-100 rounded-lg outline-none border border-purple-400 w-32 focus:w-44 transition-all"
+              className="h-6 px-2 text-xs font-medium text-zinc-900 bg-zinc-100/90 rounded-md outline-none border border-black/10 focus:ring-2 focus:ring-[#0071e3]/20 focus:border-[#0071e3] w-36 transition-all"
             />
           ) : (
             <button
               id="board-title-btn"
               onClick={() => setIsEditing(true)}
-              className="group flex items-center gap-1.5 text-sm font-medium text-slate-800 hover:text-purple-600 px-2 py-1 rounded-lg hover:bg-slate-50 transition-colors"
+              className="group flex items-center gap-1.5 text-xs font-semibold text-zinc-800 hover:text-zinc-950 px-1.5 py-0.5 rounded-md hover:bg-black/[0.04] transition-colors cursor-pointer"
               title="Click to rename board"
             >
-              <span className="max-w-[150px] truncate">{boardTitle}</span>
-              <Edit2 className="w-3 h-3 text-slate-300 opacity-0 group-hover:opacity-100 transition-opacity" />
+              <span className="max-w-[140px] truncate">{boardTitle}</span>
+              <Edit2 className="w-2.5 h-2.5 text-zinc-400 opacity-0 group-hover:opacity-100 transition-opacity" />
             </button>
           )}
         </div>
 
-        {/* Duplicate Board Icon */}
+        {/* Duplicate Board Action */}
         <button
           id="duplicate-board-btn"
           onClick={handleDuplicateClick}
-          className="p-1.5 text-slate-500 hover:text-purple-600 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer ml-0.5"
-          title="Duplicate board (clones elements to new copy)"
+          className="p-1 text-zinc-400 hover:text-zinc-800 hover:bg-black/[0.04] rounded-lg transition-colors cursor-pointer active:scale-95"
+          title="Duplicate Board"
         >
           {copiedNotification ? (
-            <Check className="w-4 h-4 text-emerald-600" />
+            <Check className="w-3.5 h-3.5 text-emerald-600" />
           ) : (
-            <Copy className="w-4 h-4" />
+            <Copy className="w-3.5 h-3.5" />
           )}
         </button>
       </div>
 
       {/* Floating duplicate toast feedback */}
       {copiedNotification && (
-        <div className="ml-3 px-3 py-1.5 bg-slate-900/90 text-white text-xs rounded-xl shadow-lg flex items-center gap-1.5 animate-in fade-in slide-in-from-left duration-200">
-          <Sparkles className="w-3.5 h-3.5 text-purple-300" />
-          <span>Board duplicated successfully!</span>
+        <div className="ml-2.5 px-3 py-1.5 bg-[#1d1d1f]/95 text-white backdrop-blur-xl border border-white/10 text-xs rounded-full shadow-lg flex items-center gap-1.5 animate-in fade-in slide-in-from-left duration-200">
+          <Sparkles className="w-3 h-3 text-[#0071e3]" />
+          <span>Board duplicated!</span>
         </div>
       )}
     </div>

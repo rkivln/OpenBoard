@@ -348,13 +348,13 @@ export const EditableTableView: React.FC<EditableTableViewProps> = ({
                           }
                         }}
                         onMouseDown={(e) => e.stopPropagation()}
-                        className="w-full px-2 py-1 text-xs font-semibold text-slate-800 bg-transparent rounded hover:bg-white focus:bg-white focus:ring-1.5 focus:ring-purple-500 focus:outline-none transition-colors border border-transparent focus:border-purple-300 truncate cursor-text select-text"
+                        className="w-full px-2 py-1 text-xs font-semibold text-zinc-900 bg-transparent rounded hover:bg-white focus:bg-white focus:ring-2 focus:ring-[#0071e3]/20 focus:outline-none transition-colors border border-transparent focus:border-[#0071e3] truncate cursor-text select-text"
                       />
                       {headers.length > 1 && (
                         <button
                           onClick={(e) => handleDeleteColumn(e, cIdx)}
                           onMouseDown={(e) => e.stopPropagation()}
-                          className="opacity-0 group-hover:opacity-100 p-0.5 hover:bg-rose-100 text-slate-400 hover:text-rose-600 rounded transition-opacity cursor-pointer shrink-0"
+                          className="opacity-0 group-hover:opacity-100 p-0.5 hover:bg-rose-100 text-zinc-400 hover:text-rose-600 rounded transition-opacity cursor-pointer shrink-0"
                           title="Delete Column"
                         >
                           <X className="w-3 h-3" />
@@ -363,12 +363,12 @@ export const EditableTableView: React.FC<EditableTableViewProps> = ({
                     </div>
                   </th>
                 ))}
-                <th className="w-10 p-1 border-b border-slate-200 bg-slate-50 text-center">
+                <th className="w-10 p-1 border-b border-zinc-200 bg-zinc-50 text-center">
                   <button
                     onClick={handleAddColumn}
                     onMouseDown={(e) => e.stopPropagation()}
-                    className="w-6 h-6 inline-flex items-center justify-center hover:bg-purple-100 text-purple-600 rounded transition-colors cursor-pointer"
-                    title="Add column to right"
+                    className="w-6 h-6 inline-flex items-center justify-center hover:bg-blue-50 text-[#0071e3] rounded-md transition-colors cursor-pointer active:scale-95"
+                    title="Add column"
                   >
                     <Plus className="w-3.5 h-3.5" />
                   </button>
@@ -381,26 +381,26 @@ export const EditableTableView: React.FC<EditableTableViewProps> = ({
               {rows.map((row, rIdx) => (
                 <tr
                   key={rIdx}
-                  className="group border-b border-slate-100 last:border-none hover:bg-slate-50/60 transition-colors"
+                  className="group border-b border-zinc-100 last:border-none hover:bg-zinc-50/60 transition-colors"
                 >
                   {/* Row Number / Delete Action */}
-                  <td className="w-8 py-1.5 px-1 text-center border-r border-slate-200 select-none">
+                  <td className="w-8 py-1.5 px-1 text-center border-r border-zinc-200 select-none">
                     {rows.length > 1 ? (
                       <div className="relative flex items-center justify-center">
-                        <span className="text-[11px] text-slate-400 group-hover:hidden font-mono">
+                        <span className="text-[11px] text-zinc-400 group-hover:hidden font-mono">
                           {rIdx + 1}
                         </span>
                         <button
                           onClick={(e) => handleDeleteRow(e, rIdx)}
                           onMouseDown={(e) => e.stopPropagation()}
-                          className="hidden group-hover:inline-flex p-0.5 hover:bg-rose-100 text-slate-400 hover:text-rose-600 rounded transition-colors cursor-pointer"
+                          className="hidden group-hover:inline-flex p-0.5 hover:bg-rose-100 text-zinc-400 hover:text-rose-600 rounded transition-colors cursor-pointer"
                           title="Delete row"
                         >
                           <X className="w-3 h-3" />
                         </button>
                       </div>
                     ) : (
-                      <span className="text-[11px] text-slate-400 font-mono">1</span>
+                      <span className="text-[11px] text-zinc-400 font-mono">1</span>
                     )}
                   </td>
 
@@ -408,7 +408,7 @@ export const EditableTableView: React.FC<EditableTableViewProps> = ({
                   {row.map((cellValue, cIdx) => (
                     <td
                       key={cIdx}
-                      className="p-1 border-r border-slate-200 min-w-[110px]"
+                      className="p-1 border-r border-zinc-200 min-w-[110px]"
                     >
                       <input
                         id={`tbl-${element.id}-cell-${rIdx}-${cIdx}`}
@@ -423,13 +423,13 @@ export const EditableTableView: React.FC<EditableTableViewProps> = ({
                           }
                         }}
                         onMouseDown={(e) => e.stopPropagation()}
-                        className="w-full px-2 py-1.5 text-xs text-slate-800 bg-transparent rounded hover:bg-white focus:bg-white focus:ring-1.5 focus:ring-purple-500 focus:outline-none transition-colors border border-transparent focus:border-purple-300 cursor-text select-text"
+                        className="w-full px-2 py-1.5 text-xs text-zinc-800 bg-transparent rounded hover:bg-white focus:bg-white focus:ring-2 focus:ring-[#0071e3]/20 focus:outline-none transition-colors border border-transparent focus:border-[#0071e3] cursor-text select-text"
                       />
                     </td>
                   ))}
 
                   {/* Empty cell to match + Col column */}
-                  <td className="w-10 bg-slate-50/40" />
+                  <td className="w-10 bg-zinc-50/40" />
                 </tr>
               ))}
             </tbody>
@@ -440,7 +440,7 @@ export const EditableTableView: React.FC<EditableTableViewProps> = ({
         <button
           onClick={handleAddRow}
           onMouseDown={(e) => e.stopPropagation()}
-          className="flex items-center justify-center gap-1.5 py-1.5 bg-slate-50 hover:bg-purple-50/80 text-slate-500 hover:text-purple-700 text-xs font-medium border-t border-slate-200 transition-colors cursor-pointer"
+          className="flex items-center justify-center gap-1.5 py-1.5 bg-zinc-50 hover:bg-blue-50/80 text-zinc-500 hover:text-[#0071e3] text-xs font-medium border-t border-zinc-200 transition-colors cursor-pointer active:scale-98"
         >
           <Plus className="w-3.5 h-3.5" />
           <span>Add row</span>
@@ -448,7 +448,7 @@ export const EditableTableView: React.FC<EditableTableViewProps> = ({
 
         {/* Selection Indicator Border */}
         {isSelected && (
-          <div className="absolute -inset-1 border-2 border-[#8B5CF6] pointer-events-none rounded-xl" />
+          <div className="absolute -inset-1 border-2 border-[#0071e3] pointer-events-none rounded-xl shadow-2xs" />
         )}
       </div>
     </foreignObject>

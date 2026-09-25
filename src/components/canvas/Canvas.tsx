@@ -12,6 +12,9 @@ import {
   UserPresence,
   ShapeElement,
   ConnectorElement,
+  FrameElement,
+  ImageElement,
+  CodeElement,
 } from '../../types.ts';
 import { PatternDefs } from '../../utils/patterns.tsx';
 import { CanvasElementView } from './CanvasElementView.tsx';
@@ -26,6 +29,9 @@ import {
   type ResizeHandleDirection,
 } from '../../utils/snapping.ts';
 import { SmartGuidesOverlay } from './SmartGuidesOverlay.tsx';
+import { LaserTrailLayer, LaserPoint } from './LaserTrailLayer.tsx';
+import { MultiSelectionToolbar } from './MultiSelectionToolbar.tsx';
+import { soundEngine } from '../../utils/audio.ts';
 
 function getShapeAnchor(
   el: CanvasElement,
@@ -87,6 +93,13 @@ interface CanvasProps {
   onZoomChange: (zoom: number, originX?: number, originY?: number) => void;
   onCursorMove: (x: number, y: number) => void;
   onToolChange?: (tool: ToolType) => void;
+  spotlightMode?: boolean;
+  isLaserActive?: boolean;
+  isPhysicsActive?: boolean;
+  onStartPhysicsDrag?: (id: string, canvasPos: { x: number; y: number }) => void;
+  onMovePhysicsDrag?: (canvasPos: { x: number; y: number }, w: number, h: number) => void;
+  onEndPhysicsDrag?: () => void;
+  onApplyAttraction?: (canvasPos: { x: number; y: number }) => void;
 }
 
 export const Canvas: React.FC<CanvasProps> = ({
@@ -118,8 +131,20 @@ export const Canvas: React.FC<CanvasProps> = ({
   onZoomChange,
   onCursorMove,
   onToolChange,
+  spotlightMode = false,
+  isLaserActive = false,
+  isPhysicsActive = false,
+  onStartPhysicsDrag,
+  onMovePhysicsDrag,
+  onEndPhysicsDrag,
+  onApplyAttraction,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
+
+  // Laser Pointer & Spotlight State
+  const [laserPoints, setLaserPoints] = useState<LaserPoint[]>([]);
+  const [spotlightCenter, setSpotlightCenter] = useState<{ x: number; y: number } | null>(null);
+  const [isLaserDrawing, setIsLaserDrawing] = useState(false);
 
   // Interaction State
   const [isPanning, setIsPanning] = useState(false);
@@ -452,6 +477,101 @@ export const Canvas: React.FC<CanvasProps> = ({
     };
   }, [isSpacePressed]);
 
+  // Global Image Paste Listener (Paste screenshots, moodboards directly)
+  useEffect(() => {
+    const handlePaste = (e: ClipboardEvent) => {
+      if (!e.clipboardData) return;
+      const items = Array.from(e.clipboardData.items);
+      for (const item of items) {
+        if (item.type.startsWith('image/')) {
+          const file = item.getAsFile();
+          if (file) {
+            const reader = new FileReader();
+            reader.onload = (event) => {
+              const url = event.target?.result as string;
+              const img = new Image();
+              img.onload = () => {
+                const maxDim = 420;
+                let w = img.naturalWidth || 320;
+                let h = img.naturalHeight || 240;
+                if (w > maxDim || h > maxDim) {
+                  const ratio = Math.min(maxDim / w, maxDim / h);
+                  w = Math.round(w * ratio);
+                  h = Math.round(h * ratio);
+                }
+                const centerCanvasX = (window.innerWidth / 2 - pan.x) / zoom;
+                const centerCanvasY = (window.innerHeight / 2 - pan.y) / zoom;
+                const newImg: CanvasElement = {
+                  id: `img-${Date.now()}`,
+                  type: 'image',
+                  x: Math.round(centerCanvasX - w / 2),
+                  y: Math.round(centerCanvasY - h / 2),
+                  width: w,
+                  height: h,
+                  url,
+                  zIndex: elements.length + 1,
+                };
+                soundEngine.playPop();
+                onAddElement(newImg);
+                onSelectElement(newImg.id);
+              };
+              img.src = url;
+            };
+            reader.readAsDataURL(file);
+          }
+        }
+      }
+    };
+
+    window.addEventListener('paste', handlePaste);
+    return () => window.removeEventListener('paste', handlePaste);
+  }, [pan, zoom, elements.length, onAddElement, onSelectElement]);
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      Array.from(e.dataTransfer.files).forEach((file) => {
+        if (file.type.startsWith('image/')) {
+          const reader = new FileReader();
+          reader.onload = (event) => {
+            const url = event.target?.result as string;
+            const img = new Image();
+            img.onload = () => {
+              const maxDim = 420;
+              let w = img.naturalWidth || 320;
+              let h = img.naturalHeight || 240;
+              if (w > maxDim || h > maxDim) {
+                const ratio = Math.min(maxDim / w, maxDim / h);
+                w = Math.round(w * ratio);
+                h = Math.round(h * ratio);
+              }
+              const canvasPos = getCanvasCoords(e.clientX, e.clientY);
+              const newImg: CanvasElement = {
+                id: `img-${Date.now()}`,
+                type: 'image',
+                x: Math.round(canvasPos.x - w / 2),
+                y: Math.round(canvasPos.y - h / 2),
+                width: w,
+                height: h,
+                url,
+                zIndex: elements.length + 1,
+              };
+              soundEngine.playPop();
+              onAddElement(newImg);
+              onSelectElement(newImg.id);
+            };
+            img.src = url;
+          };
+          reader.readAsDataURL(file);
+        }
+      });
+    }
+  };
+
   // Handle Mouse Wheel Zooming
   const handleWheel = (e: React.WheelEvent) => {
     e.preventDefault();
@@ -631,12 +751,42 @@ export const Canvas: React.FC<CanvasProps> = ({
       onToolChange?.('select');
       return;
     }
+
+    // LASER POINTER TOOL
+    if (currentTool === 'laser' || isLaserActive) {
+      setIsLaserDrawing(true);
+      const newPt: LaserPoint = { x: canvasPos.x, y: canvasPos.y, time: performance.now() };
+      setLaserPoints((prev) => [...prev.slice(-60), newPt]);
+      setSpotlightCenter({ x: canvasPos.x, y: canvasPos.y });
+      return;
+    }
+
+    // FRAME TOOL
+    if (currentTool === 'frame') {
+      setIsCreatingShape(true);
+      setShapeStart(canvasPos);
+      setShapeCurrent(canvasPos);
+      return;
+    }
   };
 
   // Mouse Move
   const handleMouseMove = (e: React.MouseEvent) => {
     const canvasPos = getCanvasCoords(e.clientX, e.clientY);
     onCursorMove(canvasPos.x, canvasPos.y);
+
+    setSpotlightCenter({ x: canvasPos.x, y: canvasPos.y });
+
+    if (isPhysicsActive && !isDraggingElements) {
+      onApplyAttraction?.(canvasPos);
+    }
+
+    if (currentTool === 'laser' || isLaserActive) {
+      const now = performance.now();
+      const newPt: LaserPoint = { x: canvasPos.x, y: canvasPos.y, time: now };
+      setLaserPoints((prev) => [...prev.filter((p) => now - p.time < 1100), newPt]);
+      if (isLaserDrawing) return;
+    }
 
     // Live Flowchart Connection Drag with magnetic anchor snapping
     if (connectingState) {
@@ -787,6 +937,14 @@ export const Canvas: React.FC<CanvasProps> = ({
 
     // Multi-element Dragging motion with Smart Snapping Guides
     if (isDraggingElements && draggedSnapshots.size > 0) {
+      if (isPhysicsActive && draggedSnapshots.size === 1) {
+        const firstSnap = draggedSnapshots.values().next().value;
+        if (firstSnap) {
+          onMovePhysicsDrag?.(canvasPos, firstSnap.origWidth || 120, firstSnap.origHeight || 60);
+          return;
+        }
+      }
+
       let dx = canvasPos.x - dragStart.x;
       let dy = canvasPos.y - dragStart.y;
 
@@ -996,6 +1154,9 @@ export const Canvas: React.FC<CanvasProps> = ({
 
     // Finish Multi-element Dragging
     if (isDraggingElements) {
+      if (isPhysicsActive) {
+        onEndPhysicsDrag?.();
+      }
       setIsDraggingElements(false);
       setDraggedSnapshots(new Map());
       setSnappingGuides([]);
@@ -1063,6 +1224,27 @@ export const Canvas: React.FC<CanvasProps> = ({
         onAddElement(newShape);
         onSelectElement(newShape.id);
         triggerAutoEditing(newShape.id);
+        onToolChange?.('select');
+      } else if (currentTool === 'frame') {
+        const frameW = isClick ? 800 : Math.max(Math.abs(shapeCurrent.x - shapeStart.x), 200);
+        const frameH = isClick ? 500 : Math.max(Math.abs(shapeCurrent.y - shapeStart.y), 150);
+        const fPosX = isClick ? shapeStart.x - frameW / 2 : Math.min(shapeStart.x, shapeCurrent.x);
+        const fPosY = isClick ? shapeStart.y - frameH / 2 : Math.min(shapeStart.y, shapeCurrent.y);
+        const frameCount = elements.filter((e) => e.type === 'frame').length;
+
+        const newFrame: CanvasElement = {
+          id: `frame-${Date.now()}`,
+          type: 'frame',
+          title: `Section ${frameCount + 1}`,
+          x: Math.round(fPosX),
+          y: Math.round(fPosY),
+          width: frameW,
+          height: frameH,
+          strokeColor: '#8b5cf6',
+          zIndex: 1,
+        };
+        onAddElement(newFrame);
+        onSelectElement(newFrame.id);
         onToolChange?.('select');
       } else if (currentTool === 'connector') {
         const fromEl = elements.find(
@@ -1138,6 +1320,10 @@ export const Canvas: React.FC<CanvasProps> = ({
     setDragStart(canvasPos);
     setIsDraggingElements(true);
 
+    if (isPhysicsActive) {
+      onStartPhysicsDrag?.(id, canvasPos);
+    }
+
     const snapshots = new Map<string, DraggedElementSnapshot>();
     nextSelected.forEach((selId) => {
       const el = elements.find((item) => item.id === selId);
@@ -1193,11 +1379,15 @@ export const Canvas: React.FC<CanvasProps> = ({
       onMouseMove={handleMouseMove}
       onMouseUp={handleMouseUp}
       onWheel={handleWheel}
+      onDragOver={handleDragOver}
+      onDrop={handleDrop}
       className={`absolute inset-0 w-full h-full overflow-hidden select-none ${
         currentTool === 'hand' || isSpacePressed
           ? 'cursor-grab active:cursor-grabbing'
           : currentTool === 'pen'
           ? 'cursor-crosshair'
+          : currentTool === 'laser'
+          ? 'cursor-none'
           : currentTool === 'select'
           ? isSelectingBox
             ? 'cursor-crosshair'
@@ -1528,6 +1718,33 @@ export const Canvas: React.FC<CanvasProps> = ({
           })}
         </g>
       </svg>
+
+      {/* Ephemeral Glowing Laser Trail & Spotlight Layer */}
+      <LaserTrailLayer
+        points={laserPoints}
+        isActive={currentTool === 'laser' || isLaserActive}
+        spotlightMode={spotlightMode}
+        spotlightCenter={spotlightCenter}
+        zoom={zoom}
+        pan={pan}
+      />
+
+      {/* Floating Multi-Selection Alignment & Tidy Toolbar */}
+      {selectedElementIds.length >= 2 && (
+        <MultiSelectionToolbar
+          selectedElements={elements.filter((e) => selectedElementIds.includes(e.id))}
+          onBatchUpdate={(updates) => onBatchUpdateElements?.(updates)}
+          onDuplicate={() => onDuplicateElements?.(selectedElementIds)}
+          onDelete={() => {
+            if (onDeleteElements) {
+              onDeleteElements(selectedElementIds);
+            } else {
+              selectedElementIds.forEach((id) => onDeleteElement(id));
+            }
+          }}
+          zoom={zoom}
+        />
+      )}
     </div>
   );
 };

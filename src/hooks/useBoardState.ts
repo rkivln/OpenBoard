@@ -365,6 +365,17 @@ export function useBoardState() {
     [commitElements, sendWs]
   );
 
+  // Fast direct state update for 60fps physics loop without bloating undo history
+  const updateElementsLive = useCallback((newElements: CanvasElement[]) => {
+    setElements(newElements);
+    elementsRef.current = newElements;
+  }, []);
+
+  const commitLiveElements = useCallback(() => {
+    commitElements(elementsRef.current);
+    sendWs({ type: 'elements:batch', elements: elementsRef.current });
+  }, [commitElements, sendWs]);
+
   const deleteElements = useCallback(
     (ids: string[]) => {
       commitElements((prev) => prev.filter((el) => !ids.includes(el.id)));
@@ -693,6 +704,8 @@ export function useBoardState() {
     setAudioVolume: changeAudioVolume,
     toggleAudioMute: toggleMute,
     addOneMinuteToTimer: addOneMinute,
+    updateElementsLive,
+    commitLiveElements,
 
     // Actions
     addElement,

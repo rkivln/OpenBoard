@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, Copy, Check, Globe, Lock, ShieldCheck, Share2 } from 'lucide-react';
+import { X, Copy, Check, Globe, ShieldCheck, Share2 } from 'lucide-react';
 
 interface ShareModalProps {
   isOpen: boolean;
@@ -20,22 +20,22 @@ export const ShareModal: React.FC<ShareModalProps> = ({ isOpen, onClose, boardTi
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/30 backdrop-blur-xs">
-      <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-md overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/25 backdrop-blur-xs select-none">
+      <div className="bg-white rounded-2xl shadow-[0_20px_60px_rgba(0,0,0,0.2)] border border-black/[0.08] w-full max-w-md overflow-hidden animate-in fade-in zoom-in-95 duration-150">
         {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b border-slate-100">
-          <div className="flex items-center gap-2">
-            <div className="p-1.5 rounded-lg bg-purple-100 text-purple-700">
-              <Share2 className="w-4 h-4" />
+        <div className="flex items-center justify-between p-4 border-b border-black/[0.06]">
+          <div className="flex items-center gap-2.5">
+            <div className="p-2 rounded-xl bg-blue-50 text-[#0071e3]">
+              <Share2 className="w-4 h-4 stroke-[2]" />
             </div>
             <div>
-              <h3 className="font-bold text-sm text-slate-900">Share Board</h3>
-              <p className="text-[11px] text-slate-400">Invite collaborators to &ldquo;{boardTitle}&rdquo;</p>
+              <h3 className="font-semibold text-sm text-zinc-900">Share Workspace</h3>
+              <p className="text-[11px] text-zinc-500">Collaborate live on &ldquo;{boardTitle}&rdquo;</p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100 cursor-pointer"
+            className="w-7 h-7 text-zinc-400 hover:text-zinc-700 rounded-lg hover:bg-black/[0.04] flex items-center justify-center transition-colors cursor-pointer"
           >
             <X className="w-4 h-4" />
           </button>
@@ -45,29 +45,29 @@ export const ShareModal: React.FC<ShareModalProps> = ({ isOpen, onClose, boardTi
         <div className="p-4 space-y-4">
           {/* Link Copy Field */}
           <div>
-            <label className="text-xs font-semibold text-slate-700 block mb-1.5">
-              Board Link
+            <label className="text-xs font-medium text-zinc-700 block mb-1.5">
+              Workspace Link
             </label>
             <div className="flex items-center gap-2">
               <input
                 type="text"
                 readOnly
                 value={shareUrl}
-                className="flex-1 px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono text-slate-600 truncate outline-none select-all"
+                className="flex-1 px-3 py-2 bg-zinc-50 border border-zinc-200/80 rounded-xl text-xs font-mono text-zinc-600 truncate outline-none select-all"
               />
               <button
                 onClick={handleCopy}
-                className="px-3.5 py-2 bg-[#8B5CF6] hover:bg-[#7C3AED] text-white text-xs font-medium rounded-xl flex items-center gap-1.5 shadow-xs transition-all cursor-pointer shrink-0"
+                className="px-4 py-2 bg-[#0071e3] hover:bg-[#0077ED] active:bg-[#0062c4] text-white text-xs font-medium rounded-xl flex items-center gap-1.5 shadow-xs transition-all cursor-pointer shrink-0 active:scale-95"
               >
                 {copied ? (
                   <>
-                    <Check className="w-3.5 h-3.5 text-white" />
+                    <Check className="w-3.5 h-3.5 text-white stroke-[2.5]" />
                     <span>Copied!</span>
                   </>
                 ) : (
                   <>
-                    <Copy className="w-3.5 h-3.5" />
-                    <span>Copy</span>
+                    <Copy className="w-3.5 h-3.5 stroke-[2]" />
+                    <span>Copy Link</span>
                   </>
                 )}
               </button>
@@ -75,25 +75,25 @@ export const ShareModal: React.FC<ShareModalProps> = ({ isOpen, onClose, boardTi
           </div>
 
           {/* Access permissions */}
-          <div className="p-3 bg-purple-50/60 border border-purple-100 rounded-xl space-y-2">
+          <div className="p-3 bg-zinc-50 border border-black/[0.06] rounded-xl space-y-1.5">
             <div className="flex items-start gap-2.5">
-              <Globe className="w-4 h-4 text-purple-600 mt-0.5" />
+              <Globe className="w-4 h-4 text-[#0071e3] mt-0.5" />
               <div>
-                <div className="text-xs font-semibold text-purple-900">Anyone with the link can edit</div>
-                <div className="text-[11px] text-purple-700/80">
-                  Collaborators can join in real-time with synchronized cursors, notes, and live voting.
+                <div className="text-xs font-semibold text-zinc-900">Real-time collaborative access</div>
+                <div className="text-[11px] text-zinc-500">
+                  Anyone with the link can join instantly with live cursor tracking, instant updates, and synchronized presentations.
                 </div>
               </div>
             </div>
           </div>
 
           {/* Real-time stats */}
-          <div className="flex items-center justify-between text-xs text-slate-500 pt-1 border-t border-slate-100">
-            <span className="flex items-center gap-1.5">
-              <ShieldCheck className="w-4 h-4 text-emerald-600" />
-              <span>End-to-End WebSocket Sync Active</span>
+          <div className="flex items-center justify-between text-xs text-zinc-500 pt-1 border-t border-black/[0.06]">
+            <span className="flex items-center gap-1.5 text-[11px]">
+              <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+              <span>Real-Time WebSocket Sync Active</span>
             </span>
-            <span className="text-[11px] font-mono text-purple-600">OpenBoard v1.2</span>
+            <span className="text-[11px] font-mono text-zinc-400">OpenBoard</span>
           </div>
         </div>
       </div>

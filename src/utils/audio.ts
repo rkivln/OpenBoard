@@ -324,6 +324,97 @@ class AmbientSoundEngine {
       osc.stop(startTime + 1.2);
     });
   }
+
+  // Playful pop sound (for stamps, stickers, quick-creation)
+  public playPop() {
+    if (this.isMuted) return;
+    try {
+      this.initContext();
+      if (!this.ctx || !this.masterGain) return;
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+      const now = this.ctx.currentTime;
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(420, now);
+      osc.frequency.exponentialRampToValueAtTime(840, now + 0.08);
+      gain.gain.setValueAtTime(0.18, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.09);
+      osc.connect(gain);
+      gain.connect(this.masterGain);
+      osc.start(now);
+      osc.stop(now + 0.1);
+    } catch {
+      // ignore
+    }
+  }
+
+  // Paper rustle sound for sticky note / card placement
+  public playSticky() {
+    if (this.isMuted) return;
+    try {
+      this.initContext();
+      if (!this.ctx || !this.masterGain) return;
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+      const now = this.ctx.currentTime;
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(260, now);
+      osc.frequency.exponentialRampToValueAtTime(140, now + 0.07);
+      gain.gain.setValueAtTime(0.12, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
+      osc.connect(gain);
+      gain.connect(this.masterGain);
+      osc.start(now);
+      osc.stop(now + 0.09);
+    } catch {
+      // ignore
+    }
+  }
+
+  // Crisp snap sound for alignment and connector joins
+  public playSnap() {
+    if (this.isMuted) return;
+    try {
+      this.initContext();
+      if (!this.ctx || !this.masterGain) return;
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+      const now = this.ctx.currentTime;
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(880, now);
+      gain.gain.setValueAtTime(0.08, now);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.04);
+      osc.connect(gain);
+      gain.connect(this.masterGain);
+      osc.start(now);
+      osc.stop(now + 0.05);
+    } catch {
+      // ignore
+    }
+  }
+
+  // Whoosh for slide/presentation changes
+  public playSlide() {
+    if (this.isMuted) return;
+    try {
+      this.initContext();
+      if (!this.ctx || !this.masterGain) return;
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+      const now = this.ctx.currentTime;
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(300, now);
+      osc.frequency.exponentialRampToValueAtTime(520, now + 0.15);
+      gain.gain.setValueAtTime(0.08, now);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.18);
+      osc.connect(gain);
+      gain.connect(this.masterGain);
+      osc.start(now);
+      osc.stop(now + 0.2);
+    } catch {
+      // ignore
+    }
+  }
 }
 
 export const soundEngine = new AmbientSoundEngine();

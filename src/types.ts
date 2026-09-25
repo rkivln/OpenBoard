@@ -12,6 +12,8 @@ export type ToolType =
   | 'table'
   | 'stamp'
   | 'comment'
+  | 'laser'
+  | 'frame'
   | 'more';
 
 export type PenSubTool = 'pencil' | 'highlighter' | 'washi-tape' | 'eraser';
@@ -176,6 +178,38 @@ export interface StampElement extends BaseElement {
   height: number;
   emoji?: string;
   text?: string;
+  badgeLabel?: string;
+  badgeBg?: string;
+  badgeColor?: string;
+}
+
+export interface ImageElement extends BaseElement {
+  type: 'image';
+  url: string;
+  width: number;
+  height: number;
+  caption?: string;
+  borderRadius?: number;
+  aspectRatio?: number;
+}
+
+export interface FrameElement extends BaseElement {
+  type: 'frame';
+  title: string;
+  width: number;
+  height: number;
+  strokeColor?: string;
+  fillColor?: string;
+  themeColor?: string;
+}
+
+export interface CodeElement extends BaseElement {
+  type: 'code';
+  code: string;
+  language: string;
+  title?: string;
+  width: number;
+  height: number;
 }
 
 export interface CommentReply {
@@ -208,7 +242,10 @@ export type CanvasElement =
   | TextElement
   | TableElement
   | StampElement
-  | CommentElement;
+  | CommentElement
+  | ImageElement
+  | FrameElement
+  | CodeElement;
 
 export interface BoardMetadata {
   id: string;

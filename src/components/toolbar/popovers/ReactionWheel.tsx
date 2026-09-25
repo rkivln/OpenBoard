@@ -13,7 +13,6 @@ export const ReactionWheel: React.FC<ReactionWheelProps> = ({
   isOpen,
   onClose,
   onSelectStamp,
-  selectedStamp,
 }) => {
   if (!isOpen) return null;
 
@@ -30,17 +29,16 @@ export const ReactionWheel: React.FC<ReactionWheelProps> = ({
   return (
     <div
       id="reaction-wheel-container"
-      className="absolute bottom-18 left-[64%] -translate-x-1/2 z-50 animate-in fade-in zoom-in-75 duration-150"
+      className="absolute bottom-18 left-[64%] -translate-x-1/2 z-50 animate-in fade-in zoom-in-90 duration-150 select-none"
     >
       {/* Click outside backdrop */}
       <div className="fixed inset-0 z-0 pointer-events-auto" onClick={onClose} />
 
-      {/* Radial Wheel Card */}
-      <div className="relative z-10 w-52 h-52 rounded-full bg-white/95 backdrop-blur-md shadow-[0_8px_32px_rgba(0,0,0,0.18)] border border-slate-200/90 p-1 flex items-center justify-center">
-        {/* Outer Circle Segments Background Lines */}
-        <svg className="absolute inset-0 w-full h-full pointer-events-none" viewBox="0 0 200 200">
-          <circle cx="100" cy="100" r="96" fill="none" stroke="#f1f5f9" strokeWidth="1" />
-          {/* Radial dividing spokes */}
+      {/* Radial Wheel Card - Apple Glass Disc */}
+      <div className="relative z-10 w-52 h-52 rounded-full bg-white/90 backdrop-blur-2xl shadow-[0_12px_40px_rgba(0,0,0,0.15),0_1px_2px_rgba(0,0,0,0.04)] border border-black/[0.08] p-1 flex items-center justify-center">
+        {/* Subtle radial guides */}
+        <svg className="absolute inset-0 w-full h-full pointer-events-none opacity-40" viewBox="0 0 200 200">
+          <circle cx="100" cy="100" r="96" fill="none" stroke="#e4e4e7" strokeWidth="1" />
           {[0, 45, 90, 135, 180, 225, 270, 315].map((deg) => (
             <line
               key={deg}
@@ -48,112 +46,112 @@ export const ReactionWheel: React.FC<ReactionWheelProps> = ({
               y1="100"
               x2={100 + 96 * Math.cos((deg * Math.PI) / 180)}
               y2={100 + 96 * Math.sin((deg * Math.PI) / 180)}
-              stroke="#f1f5f9"
-              strokeWidth="1.5"
+              stroke="#e4e4e7"
+              strokeWidth="1"
             />
           ))}
         </svg>
 
-        {/* 8 Radial Stamp Buttons positioned along the 8 sectors */}
+        {/* 8 Radial Reaction Buttons */}
 
-        {/* 1. Top: Green Thumbs Up 👍 */}
+        {/* 1. Top: Thumbs Up 👍 */}
         <button
           onClick={() => handleSliceClick('thumbs-up')}
-          className="absolute top-2 left-1/2 -translate-x-1/2 p-2 hover:scale-125 transition-transform cursor-pointer rounded-full hover:bg-emerald-50"
+          className="absolute top-2 left-1/2 -translate-x-1/2 p-1.5 hover:scale-120 active:scale-95 transition-all cursor-pointer rounded-full"
           title="Thumbs Up"
         >
-          <div className="w-8 h-8 rounded-full bg-emerald-100 border border-emerald-300 flex items-center justify-center text-lg shadow-xs">
+          <div className="w-8 h-8 rounded-full bg-white/95 border border-black/[0.06] shadow-xs flex items-center justify-center text-base">
             👍
           </div>
         </button>
 
-        {/* 2. Top-Right: Purple +1 ➕1 */}
+        {/* 2. Top-Right: +1 */}
         <button
           onClick={() => handleSliceClick('plus-one')}
-          className="absolute top-6 right-6 p-2 hover:scale-125 transition-transform cursor-pointer rounded-full hover:bg-purple-50"
+          className="absolute top-5 right-5 p-1.5 hover:scale-120 active:scale-95 transition-all cursor-pointer rounded-full"
           title="+1 reaction"
         >
-          <div className="w-8 h-8 rounded-full bg-purple-100 border border-purple-300 flex items-center justify-center font-black text-xs text-purple-700 shadow-xs">
+          <div className="w-8 h-8 rounded-full bg-white/95 border border-black/[0.06] shadow-xs flex items-center justify-center font-bold text-xs text-[#0071e3]">
             +1
           </div>
         </button>
 
-        {/* 3. Right: Yellow Star ⭐ */}
+        {/* 3. Right: Star ⭐ */}
         <button
           onClick={() => handleSliceClick('star')}
-          className="absolute top-1/2 right-2 -translate-y-1/2 p-2 hover:scale-125 transition-transform cursor-pointer rounded-full hover:bg-amber-50"
+          className="absolute top-1/2 right-2 -translate-y-1/2 p-1.5 hover:scale-120 active:scale-95 transition-all cursor-pointer rounded-full"
           title="Star"
         >
-          <div className="w-8 h-8 rounded-full bg-amber-100 border border-amber-300 flex items-center justify-center text-lg shadow-xs">
+          <div className="w-8 h-8 rounded-full bg-white/95 border border-black/[0.06] shadow-xs flex items-center justify-center text-base">
             ⭐
           </div>
         </button>
 
-        {/* 4. Bottom-Right: Red/Orange Question Mark ❓ */}
+        {/* 4. Bottom-Right: Question Mark ❓ */}
         <button
           onClick={() => handleSliceClick('question')}
-          className="absolute bottom-6 right-6 p-2 hover:scale-125 transition-transform cursor-pointer rounded-full hover:bg-orange-50"
+          className="absolute bottom-5 right-5 p-1.5 hover:scale-120 active:scale-95 transition-all cursor-pointer rounded-full"
           title="Question"
         >
-          <div className="w-8 h-8 rounded-full bg-orange-100 border border-orange-300 flex items-center justify-center font-black text-sm text-orange-600 shadow-xs">
+          <div className="w-8 h-8 rounded-full bg-white/95 border border-black/[0.06] shadow-xs flex items-center justify-center font-bold text-sm text-amber-600">
             ❓
           </div>
         </button>
 
-        {/* 5. Bottom: Blue Thumbs Down 👎 */}
+        {/* 5. Bottom: Thumbs Down 👎 */}
         <button
           onClick={() => handleSliceClick('thumbs-down')}
-          className="absolute bottom-2 left-1/2 -translate-x-1/2 p-2 hover:scale-125 transition-transform cursor-pointer rounded-full hover:bg-blue-50"
+          className="absolute bottom-2 left-1/2 -translate-x-1/2 p-1.5 hover:scale-120 active:scale-95 transition-all cursor-pointer rounded-full"
           title="Thumbs Down"
         >
-          <div className="w-8 h-8 rounded-full bg-blue-100 border border-blue-300 flex items-center justify-center text-lg shadow-xs">
+          <div className="w-8 h-8 rounded-full bg-white/95 border border-black/[0.06] shadow-xs flex items-center justify-center text-base">
             👎
           </div>
         </button>
 
-        {/* 6. Bottom-Left: Blank Sticker Circle 🔘 */}
+        {/* 6. Bottom-Left: Stamp Badge 🔘 */}
         <button
           onClick={() => handleSliceClick('circle-badge')}
-          className="absolute bottom-6 left-6 p-2 hover:scale-125 transition-transform cursor-pointer rounded-full hover:bg-slate-100"
-          title="Sticker Badge"
+          className="absolute bottom-5 left-5 p-1.5 hover:scale-120 active:scale-95 transition-all cursor-pointer rounded-full"
+          title="Badge Stamp"
         >
-          <div className="w-8 h-8 rounded-full bg-slate-200 border border-slate-300 flex items-center justify-center text-slate-500 shadow-xs">
-            <div className="w-4 h-4 rounded-full border border-dashed border-slate-400" />
+          <div className="w-8 h-8 rounded-full bg-white/95 border border-black/[0.06] shadow-xs flex items-center justify-center text-zinc-600">
+            <div className="w-3.5 h-3.5 rounded-full border border-dashed border-zinc-400" />
           </div>
         </button>
 
-        {/* 7. Left: User Avatar Badge 'G' */}
+        {/* 7. Left: User Avatar Badge */}
         <button
           onClick={() => handleSliceClick('avatar-g')}
-          className="absolute top-1/2 left-2 -translate-y-1/2 p-2 hover:scale-125 transition-transform cursor-pointer rounded-full hover:bg-amber-50"
+          className="absolute top-1/2 left-2 -translate-y-1/2 p-1.5 hover:scale-120 active:scale-95 transition-all cursor-pointer rounded-full"
           title="User Avatar Stamp"
         >
-          <div className="w-8 h-8 rounded-full bg-[#4a3525] border border-amber-900/40 text-white font-bold text-xs flex items-center justify-center shadow-xs">
+          <div className="w-8 h-8 rounded-full bg-zinc-800 border border-black/10 text-white font-semibold text-xs flex items-center justify-center shadow-xs">
             G
           </div>
         </button>
 
-        {/* 8. Top-Left: Red/Coral Heart ❤️ */}
+        {/* 8. Top-Left: Heart ❤️ */}
         <button
           onClick={() => handleSliceClick('heart')}
-          className="absolute top-6 left-6 p-2 hover:scale-125 transition-transform cursor-pointer rounded-full hover:bg-rose-50"
+          className="absolute top-5 left-5 p-1.5 hover:scale-120 active:scale-95 transition-all cursor-pointer rounded-full"
           title="Heart"
         >
-          <div className="w-8 h-8 rounded-full bg-rose-100 border border-rose-300 flex items-center justify-center text-lg shadow-xs">
+          <div className="w-8 h-8 rounded-full bg-white/95 border border-black/[0.06] shadow-xs flex items-center justify-center text-base">
             ❤️
           </div>
         </button>
 
-        {/* Inner Hub Circle with Emoji Cluster (Screenshot 4) */}
+        {/* Inner Hub Circle - Apple Tapback Cluster */}
         <div
-          className="relative z-20 w-16 h-16 rounded-full bg-white shadow-md border border-slate-200 flex flex-wrap items-center justify-center p-1.5 cursor-pointer hover:scale-110 transition-transform"
+          className="relative z-20 w-16 h-16 rounded-full bg-white/95 shadow-sm border border-black/[0.06] flex items-center justify-center cursor-pointer hover:scale-110 active:scale-95 transition-all"
           onClick={() => handleSliceClick('emoji-fire', '🔥')}
-          title="Quick Reaction Cluster"
+          title="Fire Reaction"
         >
-          <div className="grid grid-cols-2 gap-0.5 text-xs text-center select-none leading-none">
+          <div className="grid grid-cols-2 gap-1 text-[11px] text-center select-none leading-none">
             <span>😂</span>
-            <span>🙏</span>
-            <span>👌</span>
+            <span>👏</span>
+            <span>✨</span>
             <span>🔥</span>
           </div>
         </div>

@@ -3,6 +3,7 @@ import http from 'http';
 import path from 'path';
 import { WebSocketServer, WebSocket } from 'ws';
 import { createServer as createViteServer } from 'vite';
+import { GoogleGenAI } from '@google/genai';
 
 const app = express();
 const server = http.createServer(app);
@@ -59,6 +60,127 @@ app.post('/api/board/:id', (req, res) => {
   if (Array.isArray(req.body.elements)) room.elements = req.body.elements;
   if (req.body.activeVote !== undefined) room.activeVote = req.body.activeVote;
   res.json({ status: 'saved', count: room.elements.length });
+});
+
+// AI & Smart Diagram Generator
+app.post('/api/ai/generate-diagram', async (req, res) => {
+  const { prompt = '', template = '' } = req.body;
+  const userPrompt = (prompt || template || 'Project Workflow').trim();
+
+  // Helper for dynamic offline fallback
+  const getFallbackDiagram = (query: string) => {
+    const q = query.toLowerCase();
+    if (q.includes('auth') || q.includes('login') || q.includes('signup')) {
+      return {
+        title: 'Authentication & Authorization Flow',
+        nodes: [
+          { id: 'n1', text: 'User Enters Credentials', shapeKind: 'pill', colorTheme: 'blue' },
+          { id: 'n2', text: 'Validate Format & Rate Limit', shapeKind: 'rounded-rect', colorTheme: 'purple' },
+          { id: 'n3', text: 'Credentials Valid?', shapeKind: 'diamond', colorTheme: 'amber' },
+          { id: 'n4', text: 'Generate JWT & Session', shapeKind: 'rounded-rect', colorTheme: 'emerald' },
+          { id: 'n5', text: 'Redirect to Dashboard', shapeKind: 'pill', colorTheme: 'emerald' },
+          { id: 'n6', text: 'Return 401 & Increment Failures', shapeKind: 'rounded-rect', colorTheme: 'rose' },
+        ],
+        connections: [
+          { from: 'n1', to: 'n2', kind: 'arrow', label: 'Submit' },
+          { from: 'n2', to: 'n3', kind: 'arrow' },
+          { from: 'n3', to: 'n4', kind: 'elbow', label: 'Yes' },
+          { from: 'n3', to: 'n6', kind: 'elbow', label: 'No' },
+          { from: 'n4', to: 'n5', kind: 'arrow' },
+        ],
+        stickyNotes: [
+          { text: '🔒 Security Note: Enforce Argon2 hashing and HTTP-only cookies', color: 'yellow' },
+          { text: '⚡ Add Redis rate limiter: 5 attempts / min', color: 'blue' },
+        ],
+      };
+    }
+
+    if (q.includes('shop') || q.includes('cart') || q.includes('checkout') || q.includes('order')) {
+      return {
+        title: 'E-Commerce Checkout & Order Funnel',
+        nodes: [
+          { id: 'n1', text: 'View Shopping Cart', shapeKind: 'pill', colorTheme: 'blue' },
+          { id: 'n2', text: 'Enter Shipping Info', shapeKind: 'rounded-rect', colorTheme: 'purple' },
+          { id: 'n3', text: 'Select Payment Method', shapeKind: 'rounded-rect', colorTheme: 'purple' },
+          { id: 'n4', text: 'Payment Processed?', shapeKind: 'diamond', colorTheme: 'amber' },
+          { id: 'n5', text: 'Dispatch Warehouse Order', shapeKind: 'cylinder', colorTheme: 'emerald' },
+          { id: 'n6', text: 'Send Confirmation Email', shapeKind: 'pill', colorTheme: 'emerald' },
+          { id: 'n7', text: 'Display Payment Error', shapeKind: 'rounded-rect', colorTheme: 'rose' },
+        ],
+        connections: [
+          { from: 'n1', to: 'n2', kind: 'arrow' },
+          { from: 'n2', to: 'n3', kind: 'arrow' },
+          { from: 'n3', to: 'n4', kind: 'arrow' },
+          { from: 'n4', to: 'n5', kind: 'elbow', label: 'Success' },
+          { from: 'n4', to: 'n7', kind: 'elbow', label: 'Failed' },
+          { from: 'n5', to: 'n6', kind: 'arrow' },
+        ],
+        stickyNotes: [
+          { text: '💡 1-Click checkout increases mobile conversion by ~24%', color: 'yellow' },
+          { text: '🚚 Integrate live shipping calculation API', color: 'green' },
+        ],
+      };
+    }
+
+    // Default universal intelligent workflow
+    const words = userPrompt.split(/\s+/).slice(0, 4).join(' ');
+    return {
+      title: `${words.charAt(0).toUpperCase() + words.slice(1)} Process`,
+      nodes: [
+        { id: 'n1', text: `Initiate: ${words}`, shapeKind: 'pill', colorTheme: 'purple' },
+        { id: 'n2', text: 'Analyze Requirements & Scope', shapeKind: 'rounded-rect', colorTheme: 'blue' },
+        { id: 'n3', text: 'Verification & Quality Gate', shapeKind: 'diamond', colorTheme: 'amber' },
+        { id: 'n4', text: 'Execute Core Deliverables', shapeKind: 'rounded-rect', colorTheme: 'emerald' },
+        { id: 'n5', text: 'Final Outcome & Launch', shapeKind: 'pill', colorTheme: 'emerald' },
+      ],
+      connections: [
+        { from: 'n1', to: 'n2', kind: 'arrow' },
+        { from: 'n2', to: 'n3', kind: 'arrow' },
+        { from: 'n3', to: 'n4', kind: 'arrow', label: 'Approved' },
+        { from: 'n4', to: 'n5', kind: 'arrow', label: 'Complete' },
+      ],
+      stickyNotes: [
+        { text: `🎯 Target Goal: High fidelity execution for "${userPrompt}"`, color: 'yellow' },
+        { text: '👥 Team Review: Ensure cross-functional stakeholder alignment', color: 'purple' },
+      ],
+    };
+  };
+
+  try {
+    if (process.env.GEMINI_API_KEY) {
+      const ai = new GoogleGenAI();
+      const response = await ai.models.generateContent({
+        model: 'gemini-3.8-flash',
+        contents: `You are an expert system designer. Generate a clean visual diagram for: "${userPrompt}".
+Return valid JSON matching this schema:
+{
+  "title": "Short title",
+  "nodes": [
+    { "id": "n1", "text": "Step Title", "shapeKind": "pill"|"rounded-rect"|"diamond"|"cylinder", "colorTheme": "purple"|"blue"|"emerald"|"amber"|"rose" }
+  ],
+  "connections": [
+    { "from": "n1", "to": "n2", "label": "optional label", "kind": "arrow"|"elbow"|"curved" }
+  ],
+  "stickyNotes": [
+    { "text": "Insightful note or idea", "color": "yellow"|"pink"|"blue"|"green"|"purple" }
+  ]
+}`,
+        config: {
+          responseMimeType: 'application/json',
+        },
+      });
+
+      if (response && response.text) {
+        const parsed = JSON.parse(response.text.trim());
+        return res.json(parsed);
+      }
+    }
+  } catch (err) {
+    console.warn('Gemini diagram generation error, using fallback:', err);
+  }
+
+  // Graceful fallback
+  res.json(getFallbackDiagram(userPrompt));
 });
 
 // Setup WebSockets
