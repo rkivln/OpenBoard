@@ -92,6 +92,7 @@ export default function App() {
     setFrictionPreset,
     setMomentumDecay,
     setBounciness,
+    toggleFloorBarrier,
     toggleMagnet,
     shakeBoard,
     settleAndFreeze,
@@ -805,6 +806,7 @@ export default function App() {
         onSelectMomentumDecay={setMomentumDecay}
         physicsConfig={physicsConfig}
         onSelectBounciness={setBounciness}
+        onToggleFloorBarrier={toggleFloorBarrier}
         onToggleMagnet={toggleMagnet}
         onShakeBoard={shakeBoard}
         onSettleAndFreeze={settleAndFreeze}

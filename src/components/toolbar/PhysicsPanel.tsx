@@ -29,6 +29,7 @@ interface PhysicsPanelProps {
   onSelectMomentumDecay?: (decay: number) => void;
   physicsConfig: PhysicsConfig;
   onSelectBounciness: (val: number) => void;
+  onToggleFloorBarrier?: () => void;
   onToggleMagnet: () => void;
   onShakeBoard: () => void;
   onSettleAndFreeze: () => void;
@@ -46,6 +47,7 @@ export const PhysicsPanel: React.FC<PhysicsPanelProps> = ({
   onSelectMomentumDecay,
   physicsConfig,
   onSelectBounciness,
+  onToggleFloorBarrier,
   onToggleMagnet,
   onShakeBoard,
   onSettleAndFreeze,
@@ -321,6 +323,30 @@ export const PhysicsPanel: React.FC<PhysicsPanelProps> = ({
         </button>
       </div>
 
+      {/* Desk Floor Barrier Toggle */}
+      {onToggleFloorBarrier && (
+        <div className="mt-2">
+          <button
+            onClick={onToggleFloorBarrier}
+            className={`w-full py-1.5 px-3 rounded-xl border text-xs font-medium flex items-center justify-between transition-all cursor-pointer ${
+              physicsConfig.hasFloor
+                ? 'bg-emerald-50/80 border-emerald-200 text-emerald-800'
+                : 'bg-zinc-50 border-zinc-200 text-zinc-600 hover:bg-zinc-100'
+            }`}
+            title="When active, elements land and stack realistically on a desk surface instead of falling infinitely"
+          >
+            <span className="font-semibold text-[11px]">Desk Surface Barrier</span>
+            <span
+              className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
+                physicsConfig.hasFloor ? 'bg-emerald-600 text-white' : 'bg-zinc-200 text-zinc-600'
+              }`}
+            >
+              {physicsConfig.hasFloor ? 'FLOOR ON' : 'OFF'}
+            </span>
+          </button>
+        </div>
+      )}
+
       {/* Settle & Freeze button */}
       <div className="mt-2">
         <button
@@ -337,7 +363,7 @@ export const PhysicsPanel: React.FC<PhysicsPanelProps> = ({
       <div className="mt-3 p-2 rounded-xl bg-purple-500/8 border border-purple-500/15 flex items-start gap-2 text-[10px] text-purple-900 leading-tight">
         <Sparkles className="w-3.5 h-3.5 text-purple-600 shrink-0 mt-0.5" />
         <div>
-          <strong>Toss & Fling:</strong> Throw sticky notes or shapes with mouse velocity. Momentum decay brings them to a smooth, fluid stop.
+          <strong>Tactile Drag & Push:</strong> Dragging elements pushes and scatters obstacles. Releasing with flick throws them realistically across the board.
         </div>
       </div>
     </div>

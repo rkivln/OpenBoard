@@ -415,6 +415,40 @@ class AmbientSoundEngine {
       // ignore
     }
   }
+
+  // Soft physical tap / impact for physics collisions
+  private lastImpactTime: number = 0;
+  public playImpact(intensity: number = 1) {
+    if (this.isMuted) return;
+    const nowMs = performance.now();
+    if (nowMs - this.lastImpactTime < 80) return; // throttle collision audio
+    this.lastImpactTime = nowMs;
+
+    try {
+      this.initContext();
+      if (!this.ctx || !this.masterGain) return;
+      const now = this.ctx.currentTime;
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+      const clampedIntensity = Math.max(0.1, Math.min(1.5, intensity));
+
+      osc.type = 'triangle';
+      const baseFreq = 160 + Math.random() * 60;
+      osc.frequency.setValueAtTime(baseFreq, now);
+      osc.frequency.exponentialRampToValueAtTime(45, now + 0.06);
+
+      const vol = Math.min(0.15, 0.04 * clampedIntensity);
+      gain.gain.setValueAtTime(vol, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.07);
+
+      osc.connect(gain);
+      gain.connect(this.masterGain);
+      osc.start(now);
+      osc.stop(now + 0.08);
+    } catch {
+      // ignore
+    }
+  }
 }
 
 export const soundEngine = new AmbientSoundEngine();

@@ -151,20 +151,20 @@ export function usePhysics({
   // Momentum Decay & Friction Presets
   const setFrictionPreset = useCallback((preset: FrictionPreset) => {
     setFrictionPresetState(preset);
-    let decay = 0.038;
-    let surfaceFric = 0.2;
+    let decay = 0.04;
+    let surfaceFric = 0.35;
     if (preset === 'low') {
-      decay = 0.012; // Ice/long gliding momentum
-      surfaceFric = 0.05;
+      decay = 0.015; // Ice/long gliding momentum
+      surfaceFric = 0.08;
     } else if (preset === 'medium') {
-      decay = 0.038; // Natural fluid whiteboard feel
-      surfaceFric = 0.2;
+      decay = 0.04; // Natural fluid desk feel
+      surfaceFric = 0.35;
     } else if (preset === 'high') {
-      decay = 0.08; // Felt cushion stop
-      surfaceFric = 0.45;
+      decay = 0.085; // Felt cushion stop
+      surfaceFric = 0.55;
     } else if (preset === 'ultra') {
-      decay = 0.14; // Heavy drag immediate brake
-      surfaceFric = 0.7;
+      decay = 0.15; // Heavy drag immediate brake
+      surfaceFric = 0.75;
     }
 
     setPhysicsConfig((prev) => {
@@ -182,6 +182,15 @@ export function usePhysics({
   const setMomentumDecay = useCallback((decay: number) => {
     setPhysicsConfig((prev) => {
       const updated = { ...prev, momentumDecay: decay };
+      engineRef.current?.setConfig(updated);
+      return updated;
+    });
+  }, []);
+
+  // Floor Barrier Toggle
+  const toggleFloorBarrier = useCallback(() => {
+    setPhysicsConfig((prev) => {
+      const updated = { ...prev, hasFloor: !prev.hasFloor };
       engineRef.current?.setConfig(updated);
       return updated;
     });
@@ -261,6 +270,7 @@ export function usePhysics({
     setMomentumDecay,
     setBounciness,
     setSpringStiffness,
+    toggleFloorBarrier,
     toggleMagnet,
     shakeBoard,
     settleAndFreeze,

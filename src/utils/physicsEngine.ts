@@ -1,31 +1,34 @@
 import Matter from 'matter-js';
 import { CanvasElement, ShapeElement, StickyElement, ConnectorElement } from '../types.ts';
+import { soundEngine } from './audio.ts';
 
-const { Engine, World, Bodies, Body, Constraint, Composite, Vector } = Matter;
+const { Engine, World, Bodies, Body, Constraint, Composite, Vector, Events } = Matter;
 
 export type FrictionPreset = 'low' | 'medium' | 'high' | 'ultra';
 
 export interface PhysicsConfig {
   enabled: boolean;
-  gravityY: number; // 0 for zero-G, 0.8 for earth, -0.6 for helium
+  gravityY: number; // 0 for zero-G, 0.2 for gentle, 0.8 for earth, -0.6 for helium
   gravityX: number;
   bounciness: number; // 0 to 1 (restitution)
-  momentumDecay: number; // 0.005 to 0.15 (air resistance/kinetic friction decay)
-  surfaceFriction: number; // 0.05 to 0.8 (collision surface friction)
+  momentumDecay: number; // air drag / linear damping
+  surfaceFriction: number; // sliding contact friction
   springStiffness: number; // 0.01 to 0.2
   springDamping: number; // 0.01 to 0.2
+  hasFloor: boolean; // Virtual desk floor barrier
   isMagnetActive: boolean;
 }
 
 export const DEFAULT_PHYSICS_CONFIG: PhysicsConfig = {
   enabled: false,
-  gravityY: 0.6,
+  gravityY: 0.8, // Natural Earth gravity
   gravityX: 0,
-  bounciness: 0.7,
-  momentumDecay: 0.038, // Natural fluid deceleration
-  surfaceFriction: 0.2,
-  springStiffness: 0.04,
+  bounciness: 0.35, // Natural paper & cardboard elasticity
+  momentumDecay: 0.04, // Smooth fluid deceleration
+  surfaceFriction: 0.35, // Natural desk friction
+  springStiffness: 0.05,
   springDamping: 0.08,
+  hasFloor: true,
   isMagnetActive: false,
 };
 
@@ -34,10 +37,17 @@ export class WhiteboardPhysicsEngine {
   private bodyMap = new Map<string, Matter.Body>();
   private constraintMap = new Map<string, Matter.Constraint>();
   private config: PhysicsConfig = { ...DEFAULT_PHYSICS_CONFIG };
+
+  // Virtual Floor & Desk boundaries
+  private floorBody: Matter.Body | null = null;
+  private leftWallBody: Matter.Body | null = null;
+  private rightWallBody: Matter.Body | null = null;
+  private ceilingBody: Matter.Body | null = null;
+
+  // Elastic drag constraint for real physical contact while dragging
+  private dragConstraint: Matter.Constraint | null = null;
   private activeDraggedId: string | null = null;
-  private lastDragPos: { x: number; y: number } | null = null;
-  private dragVelocity: { vx: number; vy: number } = { vx: 0, vy: 0 };
-  private lastDragTime: number = 0;
+  private dragHistory: { x: number; y: number; time: number }[] = [];
 
   constructor() {
     this.engine = Engine.create({
@@ -46,9 +56,27 @@ export class WhiteboardPhysicsEngine {
         y: this.config.gravityY,
         scale: 0.001,
       },
-      constraintIterations: 4,
-      positionIterations: 6,
-      velocityIterations: 4,
+      constraintIterations: 6,
+      positionIterations: 10,
+      velocityIterations: 8,
+    });
+
+    // Realistic acoustic tap on physical collisions
+    Events.on(this.engine, 'collisionStart', (event) => {
+      if (!this.config.enabled) return;
+      event.pairs.forEach((pair) => {
+        const bodyA = pair.bodyA;
+        const bodyB = pair.bodyB;
+        if (bodyA.isStatic && bodyB.isStatic) return;
+
+        const relVelX = bodyA.velocity.x - bodyB.velocity.x;
+        const relVelY = bodyA.velocity.y - bodyB.velocity.y;
+        const relSpeed = Math.hypot(relVelX, relVelY);
+
+        if (relSpeed > 1.8) {
+          soundEngine.playImpact(Math.min(1.5, relSpeed / 5));
+        }
+      });
     });
   }
 
@@ -57,7 +85,7 @@ export class WhiteboardPhysicsEngine {
     this.engine.gravity.y = this.config.gravityY;
     this.engine.gravity.x = this.config.gravityX;
 
-    // Update restitution, air friction (momentum decay), and surface friction across active bodies
+    // Update material properties across all active physical bodies
     this.bodyMap.forEach((body) => {
       if (!body.isStatic) {
         body.restitution = this.config.bounciness;
@@ -71,10 +99,90 @@ export class WhiteboardPhysicsEngine {
       constraint.stiffness = this.config.springStiffness;
       constraint.damping = this.config.springDamping;
     });
+
+    // Update boundaries
+    this.updateDeskBoundaries();
   }
 
   public getConfig(): PhysicsConfig {
     return { ...this.config };
+  }
+
+  // Update virtual desk floor and side barriers based on current element layout
+  private updateDeskBoundaries() {
+    const world = this.engine.world;
+
+    if (!this.config.hasFloor || !this.config.enabled) {
+      if (this.floorBody) {
+        Composite.remove(world, this.floorBody);
+        this.floorBody = null;
+      }
+      if (this.leftWallBody) {
+        Composite.remove(world, this.leftWallBody);
+        this.leftWallBody = null;
+      }
+      if (this.rightWallBody) {
+        Composite.remove(world, this.rightWallBody);
+        this.rightWallBody = null;
+      }
+      if (this.ceilingBody) {
+        Composite.remove(world, this.ceilingBody);
+        this.ceilingBody = null;
+      }
+      return;
+    }
+
+    let minX = 0;
+    let maxX = 2500;
+    let minY = -500;
+    let maxY = 1800;
+
+    if (this.bodyMap.size > 0) {
+      this.bodyMap.forEach((body) => {
+        if (!body.isStatic) {
+          minX = Math.min(minX, body.position.x - 600);
+          maxX = Math.max(maxX, body.position.x + 600);
+          minY = Math.min(minY, body.position.y - 600);
+          maxY = Math.max(maxY, body.position.y + 600);
+        }
+      });
+    }
+
+    const deskWidth = Math.max(4000, (maxX - minX) * 1.5);
+    const centerX = (minX + maxX) / 2;
+    const floorY = maxY + 150;
+    const ceilingY = minY - 300;
+
+    // Create or position solid desk floor
+    if (!this.floorBody) {
+      this.floorBody = Bodies.rectangle(centerX, floorY, deskWidth, 200, {
+        isStatic: true,
+        friction: 0.45,
+        restitution: Math.min(0.3, this.config.bounciness * 0.5),
+        label: 'floor-barrier',
+      });
+      Composite.add(world, this.floorBody);
+    } else {
+      Body.setPosition(this.floorBody, { x: centerX, y: floorY });
+    }
+
+    // Ceiling barrier for helium gravity
+    if (this.config.gravityY < -0.1) {
+      if (!this.ceilingBody) {
+        this.ceilingBody = Bodies.rectangle(centerX, ceilingY, deskWidth, 200, {
+          isStatic: true,
+          friction: 0.4,
+          restitution: 0.2,
+          label: 'ceiling-barrier',
+        });
+        Composite.add(world, this.ceilingBody);
+      } else {
+        Body.setPosition(this.ceilingBody, { x: centerX, y: ceilingY });
+      }
+    } else if (this.ceilingBody) {
+      Composite.remove(world, this.ceilingBody);
+      this.ceilingBody = null;
+    }
   }
 
   // Sync elements into Matter.js world
@@ -90,7 +198,7 @@ export class WhiteboardPhysicsEngine {
       }
     });
 
-    // Remove obsolete constraints
+    // Remove obsolete spring constraints
     this.constraintMap.forEach((constraint, id) => {
       if (!currentIds.has(id)) {
         Composite.remove(world, constraint);
@@ -98,9 +206,9 @@ export class WhiteboardPhysicsEngine {
       }
     });
 
-    // Create or update bodies
+    // Create or update bodies with realistic mass and material density
     elements.forEach((el) => {
-      // Freehand paths or frames without bounds are skipped
+      // Freehand paths or stamps without rigid physics bounds are skipped
       if (el.type === 'path' || el.type === 'comment' || el.type === 'stamp') {
         return;
       }
@@ -115,43 +223,63 @@ export class WhiteboardPhysicsEngine {
       let body = this.bodyMap.get(el.id);
 
       if (!body) {
-        // Create new body based on element type with configured momentum decay & friction
+        // Material specs by element type
+        let density = 0.002;
+        let friction = this.config.surfaceFriction;
+        let frictionAir = this.config.momentumDecay;
+        let restitution = this.config.bounciness;
+
+        if (el.type === 'sticky') {
+          density = 0.0012; // Lightweight paper
+          friction = 0.38;
+          restitution = Math.min(0.25, this.config.bounciness);
+        } else if (el.type === 'table' || el.type === 'frame') {
+          density = 0.008; // Heavy structure
+          friction = 0.55;
+          restitution = 0.15;
+        }
+
+        // Create geometry based on shape kind
         if (el.type === 'shape' && (el as ShapeElement).shapeKind === 'circle') {
           const radius = Math.max(w, h) / 2;
           body = Bodies.circle(cx, cy, radius, {
             id: Number(el.id.replace(/\D/g, '').slice(-8)) || Math.floor(Math.random() * 1000000),
-            restitution: this.config.bounciness,
-            friction: this.config.surfaceFriction,
-            frictionAir: this.config.momentumDecay,
+            restitution: Math.min(0.75, this.config.bounciness * 1.3),
+            friction: 0.15,
+            frictionAir: frictionAir * 0.75, // Circles roll smoothly
+            density,
             isStatic,
             angle: rotRad,
           });
         } else if (el.type === 'shape' && (el as ShapeElement).shapeKind === 'triangle') {
           body = Bodies.polygon(cx, cy, 3, Math.max(w, h) / 2, {
             id: Number(el.id.replace(/\D/g, '').slice(-8)) || Math.floor(Math.random() * 1000000),
-            restitution: this.config.bounciness,
-            friction: this.config.surfaceFriction,
-            frictionAir: this.config.momentumDecay,
+            restitution,
+            friction,
+            frictionAir,
+            density,
             isStatic,
             angle: rotRad,
           });
         } else if (el.type === 'shape' && (el as ShapeElement).shapeKind === 'diamond') {
           body = Bodies.polygon(cx, cy, 4, Math.max(w, h) / 2, {
             id: Number(el.id.replace(/\D/g, '').slice(-8)) || Math.floor(Math.random() * 1000000),
-            restitution: this.config.bounciness,
-            friction: this.config.surfaceFriction,
-            frictionAir: this.config.momentumDecay,
+            restitution,
+            friction,
+            frictionAir,
+            density,
             isStatic,
             angle: rotRad + Math.PI / 4,
           });
         } else {
-          // Sticky, Table, Rect Shape, Card, Frame
+          // Sticky notes & rectangular shapes
           body = Bodies.rectangle(cx, cy, w, h, {
             id: Number(el.id.replace(/\D/g, '').slice(-8)) || Math.floor(Math.random() * 1000000),
-            restitution: this.config.bounciness,
-            friction: this.config.surfaceFriction,
-            frictionAir: this.config.momentumDecay,
+            restitution,
+            friction,
+            frictionAir,
             chamfer: { radius: el.type === 'sticky' ? 6 : 4 },
+            density,
             isStatic,
             angle: rotRad,
           });
@@ -164,7 +292,6 @@ export class WhiteboardPhysicsEngine {
         this.bodyMap.set(el.id, body);
         Composite.add(world, body);
       } else {
-        // Update static state
         if (body.isStatic !== isStatic) {
           Body.setStatic(body, isStatic);
         }
@@ -199,83 +326,93 @@ export class WhiteboardPhysicsEngine {
         }
       }
     });
+
+    this.updateDeskBoundaries();
   }
 
-  // Handle Drag Start
+  // Handle True Physics Drag Start (attaches physical mouse spring)
   public onStartDrag(elementId: string, canvasPos: { x: number; y: number }) {
     this.activeDraggedId = elementId;
-    this.lastDragPos = { ...canvasPos };
-    this.lastDragTime = performance.now();
-    this.dragVelocity = { vx: 0, vy: 0 };
-
     const body = this.bodyMap.get(elementId);
+    this.dragHistory = [{ x: canvasPos.x, y: canvasPos.y, time: performance.now() }];
+
     if (body && !body.isStatic) {
-      Body.setVelocity(body, { x: 0, y: 0 });
-      Body.setAngularVelocity(body, 0);
-    }
-  }
-
-  // Handle Drag Motion (update position and record fling velocity)
-  public onDragMove(canvasPos: { x: number; y: number }, elementWidth: number, elementHeight: number) {
-    if (!this.activeDraggedId) return;
-
-    const body = this.bodyMap.get(this.activeDraggedId);
-    const now = performance.now();
-    const dt = Math.max(1, now - this.lastDragTime);
-
-    if (this.lastDragPos) {
-      const dx = canvasPos.x - this.lastDragPos.x;
-      const dy = canvasPos.y - this.lastDragPos.y;
-      // Exponential moving average velocity
-      this.dragVelocity = {
-        vx: this.dragVelocity.vx * 0.35 + (dx / dt) * 16 * 0.65,
-        vy: this.dragVelocity.vy * 0.35 + (dy / dt) * 16 * 0.65,
+      const localPoint = {
+        x: canvasPos.x - body.position.x,
+        y: canvasPos.y - body.position.y,
       };
-    }
 
-    this.lastDragPos = { ...canvasPos };
-    this.lastDragTime = now;
+      if (this.dragConstraint) {
+        Composite.remove(this.engine.world, this.dragConstraint);
+      }
 
-    if (body) {
-      const targetCenter = {
-        x: canvasPos.x + elementWidth / 2,
-        y: canvasPos.y + elementHeight / 2,
-      };
-      Body.setPosition(body, targetCenter);
-      Body.setVelocity(body, {
-        x: Math.max(-28, Math.min(28, this.dragVelocity.vx * 0.5)),
-        y: Math.max(-28, Math.min(28, this.dragVelocity.vy * 0.5)),
+      this.dragConstraint = Constraint.create({
+        bodyA: body,
+        pointA: localPoint,
+        pointB: { x: canvasPos.x, y: canvasPos.y },
+        stiffness: 0.16,
+        damping: 0.08,
       });
+
+      Composite.add(this.engine.world, this.dragConstraint);
     }
   }
 
-  // Handle Drag End with Momentum Toss Fling impulse
+  // Handle Drag Motion (updates physical mouse spring anchor and stores velocity buffer)
+  public onDragMove(canvasPos: { x: number; y: number }, _elementWidth: number, _elementHeight: number) {
+    if (!this.activeDraggedId) return;
+    const now = performance.now();
+
+    this.dragHistory.push({ x: canvasPos.x, y: canvasPos.y, time: now });
+    if (this.dragHistory.length > 6) {
+      this.dragHistory.shift();
+    }
+
+    if (this.dragConstraint) {
+      this.dragConstraint.pointB = { x: canvasPos.x, y: canvasPos.y };
+    }
+  }
+
+  // Handle Drag End with true momentum toss release
   public onEndDrag() {
+    if (this.dragConstraint) {
+      Composite.remove(this.engine.world, this.dragConstraint);
+      this.dragConstraint = null;
+    }
+
     if (!this.activeDraggedId) return;
     const body = this.bodyMap.get(this.activeDraggedId);
 
-    if (body && !body.isStatic) {
-      // Apply momentum throw fling velocity adjusted for decay response
-      const flingScale = Math.max(0.6, Math.min(1.1, 0.85 + (0.04 - this.config.momentumDecay) * 2));
-      const flingX = Math.max(-32, Math.min(32, this.dragVelocity.vx * flingScale));
-      const flingY = Math.max(-32, Math.min(32, this.dragVelocity.vy * flingScale));
-      Body.setVelocity(body, { x: flingX, y: flingY });
-      Body.setAngularVelocity(body, (flingX - flingY) * 0.0045);
+    if (body && !body.isStatic && this.dragHistory.length >= 2) {
+      const firstSample = this.dragHistory[0];
+      const lastSample = this.dragHistory[this.dragHistory.length - 1];
+      const dt = Math.max(10, lastSample.time - firstSample.time);
+
+      const vx = ((lastSample.x - firstSample.x) / dt) * 16;
+      const vy = ((lastSample.y - firstSample.y) / dt) * 16;
+
+      // Realistic fling launch with torque
+      const flingScale = Math.max(0.6, Math.min(1.15, 0.9 + (0.04 - this.config.momentumDecay) * 2));
+      const finalVx = Math.max(-30, Math.min(30, vx * flingScale));
+      const finalVy = Math.max(-30, Math.min(30, vy * flingScale));
+
+      Body.setVelocity(body, { x: finalVx, y: finalVy });
+      Body.setAngularVelocity(body, (finalVx - finalVy) * 0.0035);
     }
 
     this.activeDraggedId = null;
-    this.lastDragPos = null;
+    this.dragHistory = [];
   }
 
-  // Apply Magnet attraction towards a point (e.g. mouse cursor)
+  // Magnetic attraction toward mouse
   public applyAttraction(target: { x: number; y: number }, strength: number = 0.0006) {
     this.bodyMap.forEach((body) => {
       if (body.isStatic || (body as any).canvasElementId === this.activeDraggedId) return;
       const forceVector = Vector.sub(target, body.position);
       const distance = Vector.magnitude(forceVector);
-      if (distance > 10 && distance < 1200) {
+      if (distance > 20 && distance < 1200) {
         const normalized = Vector.normalise(forceVector);
-        const forceMagnitude = Math.min(0.05, (strength * body.mass * 800) / (distance + 100));
+        const forceMagnitude = Math.min(0.04, (strength * body.mass * 800) / (distance + 120));
         Body.applyForce(body, body.position, Vector.mult(normalized, forceMagnitude));
       }
     });
@@ -286,13 +423,13 @@ export class WhiteboardPhysicsEngine {
     this.bodyMap.forEach((body) => {
       if (body.isStatic) return;
       const angle = Math.random() * Math.PI * 2;
-      const magnitude = (intensity * (0.5 + Math.random() * 0.5) * body.mass) / 15;
+      const magnitude = (intensity * (0.6 + Math.random() * 0.4) * body.mass) / 14;
       const force = {
         x: Math.cos(angle) * magnitude,
-        y: (Math.sin(angle) - 0.5) * magnitude * 1.5, // Pop upwards
+        y: (Math.sin(angle) - 0.7) * magnitude * 1.6, // Natural upwards pop
       };
       Body.applyForce(body, body.position, force);
-      Body.setAngularVelocity(body, (Math.random() - 0.5) * 0.25);
+      Body.setAngularVelocity(body, (Math.random() - 0.5) * 0.2);
     });
   }
 
@@ -303,11 +440,9 @@ export class WhiteboardPhysicsEngine {
     const results = new Map<string, { x: number; y: number; rotation: number }>();
 
     this.bodyMap.forEach((body, id) => {
-      if (id === this.activeDraggedId) return; // Currently dragged by user
-
-      // Gentle low-speed settling to prevent micro-jitter
+      // Gentle settling on resting contact to eliminate jitter
       const speedSq = body.velocity.x * body.velocity.x + body.velocity.y * body.velocity.y;
-      if (speedSq < 0.02 && Math.abs(body.angularVelocity) < 0.003 && Math.abs(this.config.gravityY) < 0.05) {
+      if (speedSq < 0.03 && Math.abs(body.angularVelocity) < 0.004) {
         Body.setVelocity(body, { x: 0, y: 0 });
         Body.setAngularVelocity(body, 0);
       }
@@ -330,6 +465,10 @@ export class WhiteboardPhysicsEngine {
 
   // Settle & Freeze: stop all velocities
   public settleAll() {
+    if (this.dragConstraint) {
+      Composite.remove(this.engine.world, this.dragConstraint);
+      this.dragConstraint = null;
+    }
     this.bodyMap.forEach((body) => {
       if (!body.isStatic) {
         Body.setVelocity(body, { x: 0, y: 0 });
@@ -339,8 +478,16 @@ export class WhiteboardPhysicsEngine {
   }
 
   public clear() {
+    if (this.dragConstraint) {
+      Composite.remove(this.engine.world, this.dragConstraint);
+      this.dragConstraint = null;
+    }
     World.clear(this.engine.world, false);
     this.constraintMap.clear();
     this.bodyMap.clear();
+    this.floorBody = null;
+    this.ceilingBody = null;
+    this.leftWallBody = null;
+    this.rightWallBody = null;
   }
 }
